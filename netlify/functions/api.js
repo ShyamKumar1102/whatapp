@@ -7,8 +7,18 @@ const jwt = require('jsonwebtoken');
 
 const app = express();
 
-app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+const allowedOrigins = process.env.ALLOWED_ORIGIN
+  ? [process.env.ALLOWED_ORIGIN]
+  : ['http://localhost:5173', 'http://localhost:3000'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
+app.use(express.json({ limit: '10kb' }));
 
 let cachedDb = null;
 
@@ -25,12 +35,28 @@ const agentSchema = new mongoose.Schema({
 const Agent = mongoose.models.Agent || mongoose.model('Agent', agentSchema);
 
 async function connectDB() {
-  if (cachedDb && mongoose.connection.readyState === 1) return cachedDb;
+  if (mongoose.connection.readyState === 1) return cachedDb;
   cachedDb = await mongoose.connect(process.env.MONGODB_URI, {
     serverSelectionTimeoutMS: 5000,
     connectTimeoutMS: 10000
   });
   return cachedDb;
+}
+
+function sanitizeString(val) {
+  if (typeof val !== 'string') return '';
+  return val.replace(/[\$\.]/g, '').trim();
+}
+
+function authMiddleware(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return res.status(401).json({ error: 'No token' });
+  try {
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
 }
 
 app.get('/api/health', (req, res) => {
@@ -39,13 +65,14 @@ app.get('/api/health', (req, res) => {
 
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = sanitizeString(req.body.email);
+    const { password } = req.body;
 
-    if (!email || !password) {
+    if (!email || !password || typeof password !== 'string') {
       return res.status(400).json({ message: 'Email and password required' });
     }
 
-    const agent = await Agent.findOne({ email });
+    const agent = await Agent.findOne({ email: { $eq: email } });
     if (!agent) {
       return res.status(404).json({ message: 'Account not found' });
     }
@@ -80,13 +107,16 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { name, email, password, businessName } = req.body;
+    const name = sanitizeString(req.body.name);
+    const email = sanitizeString(req.body.email);
+    const { password } = req.body;
+    const businessName = sanitizeString(req.body.businessName || req.body.name);
 
-    if (!name || !email || !password || !businessName) {
-      return res.status(400).json({ message: 'All fields required' });
+    if (!name || !email || !password || typeof password !== 'string') {
+      return res.status(400).json({ message: 'Name, email and password required' });
     }
 
-    const exists = await Agent.findOne({ email });
+    const exists = await Agent.findOne({ email: { $eq: email } });
     if (exists) {
       return res.status(400).json({ message: 'Email already registered' });
     }
@@ -111,16 +141,10 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-app.get('/api/auth/me', async (req, res) => {
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) return res.status(401).json({ error: 'No token' });
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const agent = await Agent.findById(decoded.agentId);
-    
+    const agent = await Agent.findById(req.user.agentId);
     if (!agent) return res.status(404).json({ error: 'User not found' });
-
     res.json({
       agent: {
         agentId: agent._id,
@@ -130,15 +154,15 @@ app.get('/api/auth/me', async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(401).json({ error: 'Invalid token' });
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
-app.get('/api/conversations', async (req, res) => {
+app.get('/api/conversations', authMiddleware, async (req, res) => {
   res.json({ conversations: [], total: 0 });
 });
 
-app.get('/api/analytics/overview', (req, res) => {
+app.get('/api/analytics/overview', authMiddleware, (req, res) => {
   res.json({
     totalConversations: 0,
     activeConversations: 0,
@@ -147,7 +171,7 @@ app.get('/api/analytics/overview', (req, res) => {
   });
 });
 
-app.get('/api/whatsapp/verification-status', (req, res) => {
+app.get('/api/whatsapp/verification-status', authMiddleware, (req, res) => {
   res.json({
     meta_verification_status: 'pending',
     webhook_verified: false,
@@ -164,16 +188,14 @@ app.get('/api/whatsapp/verification-status', (req, res) => {
 exports.handler = async (event, context) => {
   context.callbackWaitsForEmptyEventLoop = false;
   
-  if (!cachedDb) {
-    try {
-      await connectDB();
-    } catch (err) {
-      console.error('DB connection failed:', err.message);
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: 'Database connection failed' })
-      };
-    }
+  try {
+    await connectDB();
+  } catch (err) {
+    console.error('DB connection failed:', err.message);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Database connection failed' })
+    };
   }
   
   return serverless(app)(event, context);

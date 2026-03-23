@@ -25,26 +25,9 @@ const Register = () => {
     setLoading(true);
     setError('');
 
-    try {
-      const response = await fetch('http://localhost:3000/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-          method: 'email'
-        })
-      });
-
-      if (response.ok) {
-        window.location.href = '/login';
-      } else {
-        const data = await response.json();
-        setError(data.message);
-      }
-    } catch (err) {
-      setError('Registration failed. Please try again.');
+    const result = await register(formData.name, formData.email, formData.password, null, 'email');
+    if (!result.success) {
+      setError(result.error);
     }
     setLoading(false);
   };
