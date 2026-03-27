@@ -1,26 +1,40 @@
 const mongoose = require('mongoose');
 
 const connectDB = async () => {
-  try {
-    // Support both MONGODB_URI and MONGO_URI
-    const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
-    
-    if (!uri) {
-      console.log('⚠️ MongoDB URI not defined. Using in-memory storage.');
-      return;
-    }
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
 
-    const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 2000,
-      socketTimeoutMS: 45000,
-    });
-    console.log('✅ MongoDB Connected:', conn.connection.host);
-  } catch (error) {
-    console.error('⚠️ MongoDB connection error:', error.message);
-    console.log('⚠️ App will continue without database. Add your IP to MongoDB Atlas whitelist.');
-    console.log('📝 Visit: https://cloud.mongodb.com/v2 > Network Access > Add IP Address');
-    // Don't exit - allow app to run without database
+  if (!uri) {
+    console.error('❌ FATAL: MONGODB_URI is not defined');
+    process.exit(1);
   }
+
+  const connect = async () => {
+    try {
+      await mongoose.connect(uri, {
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+        connectTimeoutMS: 10000,
+        maxPoolSize: 10,
+        retryWrites: true
+      });
+      console.log('✅ MongoDB Connected:', mongoose.connection.host);
+    } catch (error) {
+      console.error('❌ MongoDB connection failed:', error.message);
+      console.log('🔄 Retrying in 5 seconds...');
+      setTimeout(connect, 5000);
+    }
+  };
+
+  mongoose.connection.on('disconnected', () => {
+    console.warn('⚠️ MongoDB disconnected. Reconnecting...');
+    setTimeout(connect, 5000);
+  });
+
+  mongoose.connection.on('error', (err) => {
+    console.error('❌ MongoDB error:', err.message);
+  });
+
+  await connect();
 };
 
 module.exports = connectDB;

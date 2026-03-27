@@ -53,11 +53,20 @@ const { errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 const server = http.createServer(app);
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGIN
+  ? [process.env.ALLOWED_ORIGIN]
+  : ['http://localhost:5173', 'http://localhost:3000'];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+};
+
 const io = socketIo(server, {
-  cors: {
-    origin: true,
-    credentials: true
-  }
+  cors: corsOptions
 });
 
 // Trust proxy for rate limiter
@@ -65,10 +74,7 @@ app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet());
-app.use(cors({
-  origin: true,
-  credentials: true
-}));
+app.use(cors(corsOptions));
 
 // Rate limiting - completely disabled for development
 // app.use('/api/', limiter);
