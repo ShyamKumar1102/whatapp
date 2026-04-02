@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, Search, LogOut, Menu } from 'lucide-react';
+import { Bell, Search, LogOut, Menu, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { useStore } from '@/store/useStore.js';
@@ -9,6 +9,13 @@ export default function Topbar() {
   const { chats, contacts, setSelectedChat, user, logout, toggleSidebar } = useStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showResults, setShowResults] = useState(false);
+  const [showNotif, setShowNotif] = useState(false);
+  const [notifs, setNotifs] = useState([
+    { id: 1, text: 'New message from Rahul Sharma', time: '2 min ago', read: false },
+    { id: 2, text: 'Campaign "Diwali Offer" ready to send', time: '10 min ago', read: false },
+    { id: 3, text: 'Reminder: Follow up with Amit', time: '1 hour ago', read: true },
+  ]);
+  const unread = notifs.filter(n => !n.read).length;
 
   const handleSearch = (e) => {
     const query = e.target.value;
@@ -75,10 +82,29 @@ export default function Topbar() {
 
       {/* Right — bell + user + logout */}
       <div className="flex items-center gap-2 shrink-0">
-        <button className="relative p-2 rounded-lg hover:bg-surface-hover transition-colors">
-          <Bell className="w-4 h-4 text-muted-foreground" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />
-        </button>
+        <div className="relative">
+          <button onClick={() => setShowNotif(!showNotif)} className="relative p-2 rounded-lg hover:bg-surface-hover transition-colors">
+            <Bell className="w-4 h-4 text-muted-foreground" />
+            {unread > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />}
+          </button>
+          {showNotif && (
+            <div className="absolute right-0 top-11 w-72 bg-card border border-border rounded-xl shadow-lg z-50">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                <span className="text-sm font-semibold text-foreground">Notifications {unread > 0 && <span className="ml-1 text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">{unread}</span>}</span>
+                <button onClick={() => setShowNotif(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+              </div>
+              {notifs.map(n => (
+                <div key={n.id} onClick={() => setNotifs(prev => prev.map(x => x.id === n.id ? {...x, read: true} : x))} className={`px-4 py-3 border-b border-border/50 last:border-0 cursor-pointer hover:bg-surface-hover ${!n.read ? 'bg-accent/20' : ''}`}>
+                  <p className="text-xs text-foreground">{n.text}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{n.time}</p>
+                </div>
+              ))}
+              {notifs.every(n => n.read) && (
+                <p className="text-xs text-muted-foreground text-center py-4">All caught up!</p>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">

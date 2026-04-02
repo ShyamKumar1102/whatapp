@@ -413,7 +413,9 @@ export default function PipelinePage() {
                         </div>
                       ))}
                       
-                      <button className="w-full p-3 border-2 border-dashed border-border rounded-lg text-sm text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors">
+                      <button
+                        onClick={() => setAddDealOpen(true)}
+                        className="w-full p-3 border-2 border-dashed border-border rounded-lg text-sm text-muted-foreground hover:border-primary/50 hover:text-primary transition-colors">
                         + Add Deal
                       </button>
                     </div>

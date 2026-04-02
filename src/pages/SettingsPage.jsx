@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, Key, Webhook, Building } from 'lucide-react';
+import { Save, Key, Webhook, Building, Check, Copy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -39,9 +39,12 @@ export default function SettingsPage() {
     setSettings(prev => ({ ...prev, [field]: value }));
   };
 
+  const [copied, setCopied] = useState(false);
+
   const copyWebhookUrl = () => {
     navigator.clipboard.writeText(webhookUrl);
-    alert('📋 Webhook URL copied to clipboard!');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -86,7 +89,10 @@ export default function SettingsPage() {
           <Label>Webhook URL</Label>
           <div className="flex gap-2 mt-1.5">
             <Input readOnly value={webhookUrl} className="font-mono text-xs flex-1" />
-            <Button variant="outline" size="sm" onClick={copyWebhookUrl}>Copy</Button>
+            <Button variant="outline" size="sm" onClick={copyWebhookUrl}>
+              {copied ? <Check className="w-4 h-4 text-primary" /> : <Copy className="w-4 h-4" />}
+              <span className="ml-1">{copied ? 'Copied!' : 'Copy'}</span>
+            </Button>
           </div>
           <p className="text-xs text-muted-foreground mt-1.5">Use this URL in your Meta App webhook settings</p>
         </div>

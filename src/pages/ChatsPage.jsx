@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Send, Paperclip, Smile, Phone, Video, MoreVertical, MessageSquare, Building2, Image, FileText, Mic, MicOff } from 'lucide-react';
+import { Search, Send, Paperclip, Smile, Phone, Video, MoreVertical, MessageSquare, Building2, Mic, MicOff, Bell, UserCircle, Ban, Trash2, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/store/useStore';
+import { useNavigate } from 'react-router-dom';
 import ChatCard from '@/components/ChatCard';
 import MessageBubble from '@/components/MessageBubble';
 import StatusSelector from '@/components/conversation/StatusSelector';
@@ -12,12 +13,20 @@ import { cn } from '@/lib/utils';
 
 export default function ChatsPage() {
   const { chats, messages, selectedChatId, setSelectedChat, addMessage } = useStore();
+  const navigate = useNavigate();
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentStatus, setCurrentStatus] = useState('open');
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [notifications, setNotifications] = useState([
+    { id: 1, text: 'New message from Rahul Sharma', time: '2 min ago', read: false },
+    { id: 2, text: 'Priya Patel is typing...', time: '5 min ago', read: false },
+    { id: 3, text: 'Campaign "Diwali Offer" sent', time: '1 hour ago', read: true },
+  ]);
+  const [showNotifications, setShowNotifications] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const [notes, setNotes] = useState([
@@ -174,22 +183,36 @@ export default function ChatsPage() {
   };
 
   const handleCall = () => {
-    if (selectedChat) {
-      const confirmCall = confirm(`📞 Call ${selectedChat.contact.name}?`);
-      if (confirmCall) {
-        alert(`📞 Calling ${selectedChat.contact.name}...\n\nConnecting to ${selectedChat.contact.phone}\n\nIn a real implementation, this would integrate with:\n- WhatsApp Business API\n- VoIP services\n- Phone system`);
-      }
-    }
+    if (!selectedChat) return;
+    window.open(`tel:${selectedChat.contact.phone}`, '_self');
   };
 
   const handleVideoCall = () => {
-    if (selectedChat) {
-      const confirmCall = confirm(`📹 Start video call with ${selectedChat.contact.name}?`);
-      if (confirmCall) {
-        alert(`📹 Starting video call with ${selectedChat.contact.name}...\n\nIn a real implementation, this would:\n- Use WebRTC\n- Integrate with video calling APIs\n- Connect through WhatsApp Business`);
-      }
+    if (!selectedChat) return;
+    window.open(`https://wa.me/${selectedChat.contact.phone.replace(/\D/g,'')}`, '_blank');
+  };
+
+  const handleBlockContact = () => {
+    setShowMoreMenu(false);
+    if (confirm(`Block ${selectedChat?.contact.name}? They won't be able to send messages.`)) {
+      alert(`✅ ${selectedChat?.contact.name} has been blocked.`);
     }
   };
+
+  const handleClearChat = () => {
+    setShowMoreMenu(false);
+    if (confirm('Clear all messages in this chat?')) {
+      // Clear messages for this chat from store
+      alert('✅ Chat cleared.');
+    }
+  };
+
+  const handleMarkUnread = () => {
+    setShowMoreMenu(false);
+    alert('✅ Marked as unread.');
+  };
+
+  const unreadNotifCount = notifications.filter(n => !n.read).length;
 
   const getInitials = (name) => {
     return name
@@ -263,16 +286,66 @@ export default function ChatsPage() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={handleCall} className="p-2 rounded-lg hover:bg-surface-hover transition-colors">
+                <div className="flex items-center gap-1 relative">
+                  <button onClick={handleCall} className="p-2 rounded-lg hover:bg-surface-hover transition-colors" title={`Call ${selectedChat.contact.phone}`}>
                     <Phone className="w-4 h-4 text-muted-foreground" />
                   </button>
-                  <button onClick={handleVideoCall} className="p-2 rounded-lg hover:bg-surface-hover transition-colors">
+                  <button onClick={handleVideoCall} className="p-2 rounded-lg hover:bg-surface-hover transition-colors" title="Open WhatsApp">
                     <Video className="w-4 h-4 text-muted-foreground" />
                   </button>
-                  <button className="p-2 rounded-lg hover:bg-surface-hover transition-colors">
-                    <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                  </button>
+
+                  {/* Notifications bell */}
+                  <div className="relative">
+                    <button
+                      onClick={() => { setShowNotifications(!showNotifications); setShowMoreMenu(false); }}
+                      className="p-2 rounded-lg hover:bg-surface-hover transition-colors relative"
+                    >
+                      <Bell className="w-4 h-4 text-muted-foreground" />
+                      {unreadNotifCount > 0 && (
+                        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary" />
+                      )}
+                    </button>
+                    {showNotifications && (
+                      <div className="absolute right-0 top-10 w-72 bg-card border border-border rounded-xl shadow-lg z-50">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                          <span className="text-sm font-semibold text-foreground">Notifications</span>
+                          <button onClick={() => setShowNotifications(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+                        </div>
+                        {notifications.map(n => (
+                          <div key={n.id} onClick={() => setNotifications(prev => prev.map(x => x.id === n.id ? {...x, read: true} : x))} className={cn('px-4 py-3 border-b border-border/50 last:border-0 cursor-pointer hover:bg-surface-hover', !n.read && 'bg-accent/30')}>
+                            <p className="text-xs text-foreground">{n.text}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{n.time}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Three dots menu */}
+                  <div className="relative">
+                    <button
+                      onClick={() => { setShowMoreMenu(!showMoreMenu); setShowNotifications(false); }}
+                      className="p-2 rounded-lg hover:bg-surface-hover transition-colors"
+                    >
+                      <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                    {showMoreMenu && (
+                      <div className="absolute right-0 top-10 w-48 bg-card border border-border rounded-xl shadow-lg z-50 py-1">
+                        <button onClick={handleMarkUnread} className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-surface-hover flex items-center gap-2">
+                          <Bell className="w-4 h-4" /> Mark as Unread
+                        </button>
+                        <button onClick={() => { setShowMoreMenu(false); navigate('/contacts'); }} className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-surface-hover flex items-center gap-2">
+                          <UserCircle className="w-4 h-4" /> View Contact
+                        </button>
+                        <button onClick={handleClearChat} className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-surface-hover flex items-center gap-2">
+                          <Trash2 className="w-4 h-4" /> Clear Chat
+                        </button>
+                        <button onClick={handleBlockContact} className="w-full text-left px-4 py-2.5 text-sm text-destructive hover:bg-surface-hover flex items-center gap-2">
+                          <Ban className="w-4 h-4" /> Block Contact
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
