@@ -52,7 +52,7 @@ export default function ChatsPage() {
       chatId: selectedChatId,
       content: messageInput,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      sender: 'user',
+      sender: 'agent',
       status: 'sent',
       type: 'text',
     });
@@ -86,7 +86,7 @@ export default function ChatsPage() {
         chatId: selectedChatId,
         content: `📎 ${file.name}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        sender: 'user',
+        sender: 'agent',
         status: 'sent',
         type: fileType,
       });
@@ -106,7 +106,7 @@ export default function ChatsPage() {
             chatId: selectedChatId,
             content: '🎤 Voice message (0:05)',
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            sender: 'user',
+            sender: 'agent',
             status: 'sent',
             type: 'voice',
           });
@@ -132,7 +132,7 @@ export default function ChatsPage() {
       chatId: selectedChatId,
       content: companyDetails,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      sender: 'user',
+      sender: 'agent',
       status: 'sent',
       type: 'text',
     });

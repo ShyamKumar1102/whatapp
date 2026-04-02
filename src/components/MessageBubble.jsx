@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 import { Check, CheckCheck } from 'lucide-react';
 
 export default function MessageBubble({ message }) {
-  const isOutgoing = message.sender === 'user';
+  const isOutgoing = message.sender === 'user' || message.sender === 'agent';
 
   const StatusIcon = () => {
     if (!isOutgoing) return null;

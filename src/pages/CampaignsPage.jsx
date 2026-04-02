@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Plus, Send, Clock, FileText, CheckCircle, Edit, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,10 +18,20 @@ const statusConfig = {
 const emptyForm = { name: '', template: '', scheduledAt: '' };
 
 export default function CampaignsPage() {
+  const location = useLocation();
   const [campaigns, setCampaigns]   = useState(mockCampaigns);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState(null); // null = new, object = edit
+  const [editTarget, setEditTarget] = useState(null);
   const [form, setForm]             = useState(emptyForm);
+
+  // Auto-open when navigated from Templates page
+  useEffect(() => {
+    if (location.state?.templateName) {
+      setForm({ name: '', template: location.state.templateName, scheduledAt: '' });
+      setEditTarget(null);
+      setDialogOpen(true);
+    }
+  }, [location.state]);
 
   const openNew = () => {
     setEditTarget(null);

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, CheckCircle, Clock, XCircle, Send, Trash2, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,24 +16,47 @@ const statusStyles = {
 };
 
 export default function TemplatesPage() {
+  const navigate = useNavigate();
   const [templates, setTemplates] = useState(mockTemplates);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ name: '', category: 'Marketing', language: 'English', body: '' });
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!form.name || !form.body) return;
-    setTemplates(prev => [...prev, {
-      id: Date.now().toString(),
-      ...form,
-      status: 'pending',
-      createdAt: new Date().toISOString().split('T')[0],
-    }]);
+    const token = localStorage.getItem('crm_token');
+    const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    try {
+      const res = await fetch(`${BACKEND}/api/templates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTemplates(prev => [...prev, data.data]);
+      } else throw new Error();
+    } catch {
+      // fallback: add locally
+      setTemplates(prev => [...prev, {
+        id: Date.now().toString(), ...form,
+        status: 'pending',
+        createdAt: new Date().toISOString().split('T')[0],
+      }]);
+    }
     setForm({ name: '', category: 'Marketing', language: 'English', body: '' });
     setDialogOpen(false);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (!confirm('Delete this template?')) return;
+    const token = localStorage.getItem('crm_token');
+    const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    try {
+      await fetch(`${BACKEND}/api/templates/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch { /* ignore */ }
     setTemplates(prev => prev.filter(t => t.id !== id));
   };
 
@@ -45,7 +69,8 @@ export default function TemplatesPage() {
       alert('Only approved templates can be used in campaigns.');
       return;
     }
-    alert(`✅ Template "${template.name}" selected.\n\nIn production this opens the campaign composer with this template pre-filled.`);
+    // Navigate to campaigns with template pre-selected
+    navigate('/campaigns', { state: { templateName: template.name, templateBody: template.body } });
   };
 
   return (

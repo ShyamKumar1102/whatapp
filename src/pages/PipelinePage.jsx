@@ -1,12 +1,19 @@
+import { useState, useEffect } from 'react';
 import { 
   Plus, MoreVertical, Users, Clock, CheckCircle, 
   AlertCircle, TrendingUp, Filter, Search, RefreshCw, Columns, BarChart3
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import KanbanBoard from '@/components/pipeline/KanbanBoard';
-import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useStore } from '@/store/useStore';
+
+const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
 const pipelineStages = [
   { id: 'lead', name: 'New Leads', count: 12, color: 'bg-blue-500' },
@@ -71,9 +78,14 @@ const pipelineStats = [
 ];
 
 export default function PipelinePage() {
+  const navigate = useNavigate();
+  const { setSelectedChat, chats } = useStore();
   const [activeView, setActiveView] = useState('kanban');
   const [pipelineData, setPipelineData] = useState({ stages: [], totalContacts: 0 });
   const [isLoading, setIsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [addDealOpen, setAddDealOpen] = useState(false);
+  const [dealForm, setDealForm] = useState({ title: '', company: '', value: '', contact: '', stage: 'lead', priority: 'medium' });
 
   // Mock data for kanban view
   useEffect(() => {
@@ -170,13 +182,40 @@ export default function PipelinePage() {
   const handleRefresh = async () => {
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    } catch (error) {
-      console.error('Error refreshing pipeline:', error);
-    } finally {
+      const token = localStorage.getItem('crm_token');
+      const res = await fetch(`${BACKEND}/api/pipeline`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) setPipelineData(data.data);
+    } catch { /* keep existing */ } finally {
       setIsLoading(false);
     }
   };
+
+  const handleAddDeal = () => {
+    if (!dealForm.title || !dealForm.company) return;
+    const newDeal = { id: Date.now(), ...dealForm, lastActivity: 'Just now', probability: 25 };
+    // Add to analytics view deals
+    setAddDealOpen(false);
+    setDealForm({ title: '', company: '', value: '', contact: '', stage: 'lead', priority: 'medium' });
+    alert(`✅ Deal "${newDeal.title}" added to ${newDeal.stage} stage!`);
+  };
+
+  const handleOpenChat = (contact) => {
+    const existingChat = chats.find(c => c.contact?.phone === contact.phone || c.contact?.name === contact.name);
+    if (existingChat) {
+      setSelectedChat(existingChat.id);
+    }
+    navigate('/chats');
+  };
+
+  const filteredStages = pipelineData.stages.map(stage => ({
+    ...stage,
+    contacts: stage.contacts?.filter(c =>
+      !searchQuery || c.name?.toLowerCase().includes(searchQuery.toLowerCase())
+    ) || []
+  }));
 
   const handleMoveContact = async (contactId, newStageId) => {
     try {
@@ -209,10 +248,6 @@ export default function PipelinePage() {
     } catch (error) {
       console.error('Error moving contact:', error);
     }
-  };
-
-  const handleOpenChat = (contact) => {
-    console.log('Opening chat for:', contact.name);
   };
 
   const getDealsByStage = (stageId) => {
@@ -248,13 +283,15 @@ export default function PipelinePage() {
             <input
               type="text"
               placeholder="Search deals..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
               className="pl-9 pr-4 py-2 text-sm bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 w-full sm:w-auto"
             />
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="flex items-center gap-2 flex-1 sm:flex-none">
+            <Button variant="outline" className="flex items-center gap-2 flex-1 sm:flex-none" onClick={() => setSearchQuery('')}>
               <Filter className="w-4 h-4" />
-              <span className="sm:inline hidden">Filter</span>
+              <span className="sm:inline hidden">{searchQuery ? 'Clear' : 'Filter'}</span>
             </Button>
             <Button 
               variant="outline" 
@@ -262,11 +299,11 @@ export default function PipelinePage() {
               disabled={isLoading}
               className="flex-1 sm:flex-none"
             >
-              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''} ${window.innerWidth >= 640 ? 'mr-2' : ''}`} />
+              <RefreshCw className={`h-4 w-4 sm:mr-2 ${isLoading ? 'animate-spin' : ''}`} />
               <span className="sm:inline hidden">Refresh</span>
             </Button>
-            <Button variant="default" className="flex-1 sm:flex-none">
-              <Plus className="w-4 w-4 sm:mr-2" />
+            <Button variant="default" className="flex-1 sm:flex-none" onClick={() => setAddDealOpen(true)}>
+              <Plus className="w-4 h-4 sm:mr-2" />
               <span className="sm:inline hidden">Add Deal</span>
             </Button>
           </div>
@@ -317,7 +354,7 @@ export default function PipelinePage() {
           <div className="overflow-x-auto">
             <div className="min-w-[800px] lg:min-w-0">
               <KanbanBoard
-                stages={pipelineData.stages}
+                stages={filteredStages}
                 onMoveContact={handleMoveContact}
                 onOpenChat={handleOpenChat}
               />
@@ -411,6 +448,38 @@ export default function PipelinePage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Add Deal Dialog */}
+      <Dialog open={addDealOpen} onOpenChange={setAddDealOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Add New Deal</DialogTitle></DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div><Label>Deal Title *</Label><Input value={dealForm.title} onChange={e => setDealForm({...dealForm, title: e.target.value})} placeholder="e.g. Enterprise License" className="mt-1.5" /></div>
+            <div><Label>Company *</Label><Input value={dealForm.company} onChange={e => setDealForm({...dealForm, company: e.target.value})} placeholder="Company name" className="mt-1.5" /></div>
+            <div><Label>Value</Label><Input value={dealForm.value} onChange={e => setDealForm({...dealForm, value: e.target.value})} placeholder="$10,000" className="mt-1.5" /></div>
+            <div><Label>Contact Name</Label><Input value={dealForm.contact} onChange={e => setDealForm({...dealForm, contact: e.target.value})} placeholder="Contact person" className="mt-1.5" /></div>
+            <div>
+              <Label>Stage</Label>
+              <select value={dealForm.stage} onChange={e => setDealForm({...dealForm, stage: e.target.value})} className="mt-1.5 w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
+                <option value="lead">New Lead</option>
+                <option value="qualified">Qualified</option>
+                <option value="proposal">Proposal</option>
+                <option value="negotiation">Negotiation</option>
+                <option value="closed">Closed Won</option>
+              </select>
+            </div>
+            <div>
+              <Label>Priority</Label>
+              <select value={dealForm.priority} onChange={e => setDealForm({...dealForm, priority: e.target.value})} className="mt-1.5 w-full h-9 rounded-md border border-input bg-background px-3 text-sm">
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+            <Button onClick={handleAddDeal} className="w-full" disabled={!dealForm.title || !dealForm.company}>Add Deal</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

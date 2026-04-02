@@ -3,6 +3,24 @@ import ExportContacts from '@/components/importExport/ExportContacts';
 import ImportContacts from '@/components/importExport/ImportContacts';
 import CSVTemplate from '@/components/importExport/CSVTemplate';
 
+const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+const getHeaders = () => {
+  const token = localStorage.getItem('crm_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+const triggerDownload = (blob, filename) => {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 export default function ImportExport() {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -11,22 +29,27 @@ export default function ImportExport() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      // Mock export - replace with API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // This would typically trigger a file download
-      // const response = await api.get('/contacts/export');
-      // const blob = new Blob([response.data], { type: 'text/csv' });
-      // const url = window.URL.createObjectURL(blob);
-      // const a = document.createElement('a');
-      // a.href = url;
-      // a.download = 'contacts_export.csv';
-      // a.click();
-      
-      alert('Export completed! File would be downloaded in real implementation.');
-    } catch (error) {
-      console.error('Export error:', error);
-      alert('Export failed. Please try again.');
+      const res = await fetch(`${BACKEND}/api/contacts/export`, { headers: getHeaders() });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      triggerDownload(blob, `contacts_${new Date().toISOString().split('T')[0]}.csv`);
+    } catch {
+      // Fallback: build CSV from localStorage contacts
+      const token = localStorage.getItem('crm_token');
+      try {
+        const res = await fetch(`${BACKEND}/api/contacts`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+          const rows = ['name,phone,tags'];
+          data.data.forEach(c => rows.push(`"${c.name}","${c.phone}","${(c.tags || []).join(';')}"`));
+          const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+          triggerDownload(blob, `contacts_${new Date().toISOString().split('T')[0]}.csv`);
+        }
+      } catch {
+        alert('Export failed. Make sure the backend is running.');
+      }
     } finally {
       setIsExporting(false);
     }
@@ -35,28 +58,20 @@ export default function ImportExport() {
   const handleImport = async (file) => {
     setIsImporting(true);
     try {
-      // Mock import - replace with API call
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      // This would typically upload and process the file
-      // const formData = new FormData();
-      // formData.append('csvFile', file);
-      // const response = await api.post('/contacts/import', formData);
-      
-      // Mock successful result
-      const mockResult = {
-        success: true,
-        message: 'Import completed successfully',
-        data: {
-          successCount: 15,
-          errorCount: 2
-        }
-      };
-      
-      return mockResult;
-    } catch (error) {
-      console.error('Import error:', error);
-      throw new Error('Import failed. Please check your CSV format and try again.');
+      const formData = new FormData();
+      formData.append('csvFile', file);
+      const res = await fetch(`${BACKEND}/api/contacts/import`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        return { success: true, message: data.message, data: { successCount: data.data?.length || 0, errorCount: 0 } };
+      }
+      throw new Error(data.message || 'Import failed');
+    } catch (err) {
+      throw new Error(err.message || 'Import failed. Check your CSV format.');
     } finally {
       setIsImporting(false);
     }
@@ -65,22 +80,20 @@ export default function ImportExport() {
   const handleDownloadTemplate = async () => {
     setIsDownloadingTemplate(true);
     try {
-      // Mock template download - replace with API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // This would typically trigger a template file download
-      // const response = await api.get('/contacts/template');
-      // const blob = new Blob([response.data], { type: 'text/csv' });
-      // const url = window.URL.createObjectURL(blob);
-      // const a = document.createElement('a');
-      // a.href = url;
-      // a.download = 'contacts_template.csv';
-      // a.click();
-      
-      alert('Template downloaded! File would be downloaded in real implementation.');
-    } catch (error) {
-      console.error('Template download error:', error);
-      alert('Template download failed. Please try again.');
+      const res = await fetch(`${BACKEND}/api/contacts/template`, { headers: getHeaders() });
+      if (res.ok) {
+        const blob = await res.blob();
+        triggerDownload(blob, 'contacts_template.csv');
+      } else {
+        // Fallback: generate template locally
+        const csv = 'name,phone,tags\n"John Doe","+91 98765 43210","VIP;Retail"\n"Jane Smith","+91 87654 32109","New"';
+        const blob = new Blob([csv], { type: 'text/csv' });
+        triggerDownload(blob, 'contacts_template.csv');
+      }
+    } catch {
+      const csv = 'name,phone,tags\n"John Doe","+91 98765 43210","VIP;Retail"\n"Jane Smith","+91 87654 32109","New"';
+      const blob = new Blob([csv], { type: 'text/csv' });
+      triggerDownload(blob, 'contacts_template.csv');
     } finally {
       setIsDownloadingTemplate(false);
     }
@@ -97,22 +110,11 @@ export default function ImportExport() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
-          <ExportContacts 
-            onExport={handleExport}
-            isExporting={isExporting}
-          />
-          
-          <CSVTemplate 
-            onDownloadTemplate={handleDownloadTemplate}
-            isDownloading={isDownloadingTemplate}
-          />
+          <ExportContacts onExport={handleExport} isExporting={isExporting} />
+          <CSVTemplate onDownloadTemplate={handleDownloadTemplate} isDownloading={isDownloadingTemplate} />
         </div>
-        
         <div>
-          <ImportContacts 
-            onImport={handleImport}
-            isImporting={isImporting}
-          />
+          <ImportContacts onImport={handleImport} isImporting={isImporting} />
         </div>
       </div>
     </div>
