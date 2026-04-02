@@ -25,6 +25,29 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 300 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// ── Templates (in-memory) ────────────────────────────────────
+const templates = [
+  { id: 't1', name: 'Welcome Message',    category: 'Marketing', language: 'English', status: 'approved', body: 'Hello {{1}}! Welcome to our service. We\'re excited to have you on board! 🎉', created_at: new Date().toISOString() },
+  { id: 't2', name: 'Order Confirmation', category: 'Utility',   language: 'English', status: 'approved', body: 'Hi {{1}}, your order #{{2}} has been confirmed. Expected delivery: {{3}}',    created_at: new Date().toISOString() },
+  { id: 't3', name: 'Payment Reminder',   category: 'Utility',   language: 'English', status: 'pending',  body: 'Dear {{1}}, your payment of ₹{{2}} is due on {{3}}.',                         created_at: new Date().toISOString() },
+];
+
+app.get('/api/templates', protect, (req, res) => res.json({ success: true, data: templates }));
+
+app.post('/api/templates', protect, async (req, res) => {
+  const { name, category, language, body } = req.body;
+  if (!name || !body) return res.status(400).json({ success: false, message: 'Name and body required' });
+  const t = { id: generateId(), name, category: category || 'Marketing', language: language || 'English', body, status: 'pending', created_at: new Date().toISOString() };
+  templates.push(t);
+  res.status(201).json({ success: true, data: t });
+});
+
+app.delete('/api/templates/:id', protect, (req, res) => {
+  const i = templates.findIndex(t => t.id === req.params.id);
+  if (i !== -1) templates.splice(i, 1);
+  res.json({ success: true, message: 'Deleted' });
+});
+
 // ── Health ────────────────────────────────────────────────────
 app.get('/api/health', (_, res) =>
   res.json({ success: true, message: 'CRM API running', timestamp: new Date().toISOString() })

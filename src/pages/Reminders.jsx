@@ -13,35 +13,33 @@ export default function Reminders() {
   const [editingReminder, setEditingReminder] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Mock data for now - replace with API calls
+  const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+  const token = localStorage.getItem('crm_token');
+  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+
+  // Load reminders from backend on mount
   useEffect(() => {
-    const mockReminders = [
-      {
-        id: 1,
-        title: 'Follow up with John Doe',
-        description: 'Check on the proposal status',
-        due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        status: 'pending',
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 2,
-        title: 'Prepare monthly report',
-        description: 'Compile analytics and performance metrics',
-        due_date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-        status: 'pending',
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 3,
-        title: 'Team meeting preparation',
-        description: 'Review agenda and prepare slides',
-        due_date: null,
-        status: 'completed',
-        created_at: new Date().toISOString()
+    const fetchReminders = async () => {
+      try {
+        const res  = await fetch(`${BACKEND}/api/reminders`, { headers });
+        const data = await res.json();
+        if (data.success && data.data?.length) setReminders(data.data);
+        else {
+          // fallback seed data
+          setReminders([
+            { id: 1, title: 'Follow up with John Doe', description: 'Check on the proposal status', due_date: new Date(Date.now() + 86400000).toISOString(), status: 'pending', created_at: new Date().toISOString() },
+            { id: 2, title: 'Prepare monthly report', description: 'Compile analytics and performance metrics', due_date: new Date(Date.now() - 86400000).toISOString(), status: 'pending', created_at: new Date().toISOString() },
+            { id: 3, title: 'Team meeting preparation', description: 'Review agenda and prepare slides', due_date: null, status: 'completed', created_at: new Date().toISOString() },
+          ]);
+        }
+      } catch {
+        setReminders([
+          { id: 1, title: 'Follow up with John Doe', description: 'Check on the proposal status', due_date: new Date(Date.now() + 86400000).toISOString(), status: 'pending', created_at: new Date().toISOString() },
+          { id: 2, title: 'Prepare monthly report', description: 'Compile analytics and performance metrics', due_date: new Date(Date.now() - 86400000).toISOString(), status: 'pending', created_at: new Date().toISOString() },
+        ]);
       }
-    ];
-    setReminders(mockReminders);
+    };
+    fetchReminders();
   }, []);
 
   useEffect(() => {
