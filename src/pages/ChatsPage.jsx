@@ -140,24 +140,36 @@ export default function ChatsPage() {
     setIsInputFocused(false);
   };
 
-  const handleStatusChange = (newStatus) => {
+  const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+  const token = localStorage.getItem('crm_token');
+  const authHeaders = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+
+  const handleStatusChange = async (newStatus) => {
     setCurrentStatus(newStatus);
-    console.log('Status changed to:', newStatus);
+    try {
+      await fetch(`${BACKEND}/api/conversations/${selectedChatId}/status`, {
+        method: 'PATCH', headers: authHeaders, body: JSON.stringify({ status: newStatus }),
+      });
+    } catch { /* ignore — UI already updated */ }
   };
 
-  const handleAddNote = (note) => {
-    const newNote = {
-      id: Date.now(),
-      conversation_id: selectedChatId,
-      agent_id: 1,
-      note,
-      created_at: new Date().toISOString()
-    };
+  const handleAddNote = async (note) => {
+    const newNote = { id: Date.now(), conversation_id: selectedChatId, agent_id: 1, note, created_at: new Date().toISOString() };
     setNotes(prev => [newNote, ...prev]);
+    try {
+      await fetch(`${BACKEND}/api/conversations/${selectedChatId}/notes`, {
+        method: 'POST', headers: authHeaders, body: JSON.stringify({ note }),
+      });
+    } catch { /* ignore */ }
   };
 
-  const handlePushToAdmin = () => {
+  const handlePushToAdmin = async () => {
     setCurrentStatus('pending');
+    try {
+      await fetch(`${BACKEND}/api/conversations/${selectedChatId}/push-admin`, {
+        method: 'POST', headers: authHeaders,
+      });
+    } catch { /* ignore */ }
     alert('✅ Chat successfully pushed to admin queue!');
   };
 

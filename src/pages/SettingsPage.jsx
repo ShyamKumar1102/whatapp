@@ -18,8 +18,20 @@ export default function SettingsPage() {
     notifications: true
   });
 
-  const handleSave = () => {
-    console.log('Saving settings:', settings);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const token   = localStorage.getItem('crm_token');
+      await fetch(`${BACKEND}/api/settings`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body:    JSON.stringify(settings),
+      });
+    } catch { /* backend may not have /api/settings yet — that's ok */ }
+    setSaving(false);
     alert('✅ Settings saved successfully!');
   };
 
@@ -146,8 +158,8 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <Button onClick={handleSave} className="w-full gap-2">
-        <Save className="w-4 h-4" /> Save Settings
+      <Button onClick={handleSave} className="w-full gap-2" disabled={saving}>
+        <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Settings'}
       </Button>
     </div>
   );

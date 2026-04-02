@@ -27,23 +27,28 @@ export default function ContactsPage() {
 
   const allTags = [...new Set(contacts.flatMap(c => c.tags))];
 
-  const handleAdd = () => {
+  const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+  const token = localStorage.getItem('crm_token');
+  const authHeaders = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+
+  const handleAdd = async () => {
     if (!newContact.name || !newContact.phone) return;
-    setContacts([...contacts, {
-      id: Date.now().toString(),
-      name: newContact.name,
-      phone: newContact.phone,
-      tags: newContact.tags.split(',').map(t => t.trim()).filter(Boolean),
-      isOnline: false,
-    }]);
+    const body = { name: newContact.name, phone: newContact.phone, tags: newContact.tags.split(',').map(t => t.trim()).filter(Boolean) };
+    try {
+      const res  = await fetch(`${BACKEND}/api/contacts`, { method: 'POST', headers: authHeaders, body: JSON.stringify(body) });
+      const data = await res.json();
+      setContacts(prev => [...prev, data.success ? data.data : { id: Date.now().toString(), ...body, isOnline: false }]);
+    } catch {
+      setContacts(prev => [...prev, { id: Date.now().toString(), ...body, isOnline: false }]);
+    }
     setNewContact({ name: '', phone: '', tags: '' });
     setDialogOpen(false);
   };
 
-  const handleDelete = (contactId) => {
-    if (confirm('Are you sure you want to delete this contact?')) {
-      setContacts(contacts.filter(c => c.id !== contactId));
-    }
+  const handleDelete = async (contactId) => {
+    if (!confirm('Are you sure you want to delete this contact?')) return;
+    try { await fetch(`${BACKEND}/api/contacts/${contactId}`, { method: 'DELETE', headers: authHeaders }); } catch { /* ignore */ }
+    setContacts(contacts.filter(c => c.id !== contactId));
   };
 
   const handleCall = (contact) => {

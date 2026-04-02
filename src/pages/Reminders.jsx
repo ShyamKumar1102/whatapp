@@ -71,35 +71,40 @@ export default function Reminders() {
     setIsModalOpen(true);
   };
 
+  const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+  const token = localStorage.getItem('crm_token');
+  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+
   const handleSaveReminder = async (formData) => {
     setIsLoading(true);
     try {
-      // Mock save - replace with API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
       if (editingReminder) {
-        // Update existing
-        setReminders(prev => prev.map(r => 
-          r.id === editingReminder.id 
-            ? { ...r, ...formData, updated_at: new Date().toISOString() }
-            : r
-        ));
+        const res = await fetch(`${BACKEND}/api/reminders/${editingReminder.id}`, { method: 'PUT', headers, body: JSON.stringify(formData) });
+        const data = await res.json();
+        if (data.success) {
+          setReminders(prev => prev.map(r => r.id === editingReminder.id ? { ...r, ...formData } : r));
+        }
       } else {
-        // Create new
-        const newReminder = {
-          id: Date.now(),
-          ...formData,
-          status: 'pending',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        setReminders(prev => [newReminder, ...prev]);
+        const res = await fetch(`${BACKEND}/api/reminders`, { method: 'POST', headers, body: JSON.stringify(formData) });
+        const data = await res.json();
+        if (data.success) {
+          setReminders(prev => [data.data, ...prev]);
+        } else {
+          // fallback: add locally
+          setReminders(prev => [{ id: Date.now(), ...formData, status: 'pending', created_at: new Date().toISOString() }, ...prev]);
+        }
       }
-      
       setIsModalOpen(false);
       setEditingReminder(null);
-    } catch (error) {
-      console.error('Error saving reminder:', error);
+    } catch {
+      // offline fallback
+      if (editingReminder) {
+        setReminders(prev => prev.map(r => r.id === editingReminder.id ? { ...r, ...formData } : r));
+      } else {
+        setReminders(prev => [{ id: Date.now(), ...formData, status: 'pending', created_at: new Date().toISOString() }, ...prev]);
+      }
+      setIsModalOpen(false);
+      setEditingReminder(null);
     } finally {
       setIsLoading(false);
     }
@@ -107,26 +112,17 @@ export default function Reminders() {
 
   const handleDeleteReminder = async (id) => {
     if (!confirm('Are you sure you want to delete this reminder?')) return;
-    
     try {
-      // Mock delete - replace with API call
-      setReminders(prev => prev.filter(r => r.id !== id));
-    } catch (error) {
-      console.error('Error deleting reminder:', error);
-    }
+      await fetch(`${BACKEND}/api/reminders/${id}`, { method: 'DELETE', headers });
+    } catch { /* ignore */ }
+    setReminders(prev => prev.filter(r => r.id !== id));
   };
 
   const handleCompleteReminder = async (id) => {
     try {
-      // Mock complete - replace with API call
-      setReminders(prev => prev.map(r => 
-        r.id === id 
-          ? { ...r, status: 'completed', updated_at: new Date().toISOString() }
-          : r
-      ));
-    } catch (error) {
-      console.error('Error completing reminder:', error);
-    }
+      await fetch(`${BACKEND}/api/reminders/${id}/complete`, { method: 'PATCH', headers });
+    } catch { /* ignore */ }
+    setReminders(prev => prev.map(r => r.id === id ? { ...r, status: 'completed' } : r));
   };
 
   return (
