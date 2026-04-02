@@ -5,19 +5,18 @@ import Topbar from '@/components/Topbar';
 import { useStore } from '@/store/useStore.js';
 
 export default function AppLayout() {
-  const { initApp, sidebarCollapsed } = useStore();
+  const { initApp } = useStore();
 
   useEffect(() => {
     initApp();
   }, []);
 
   return (
-    <div className="h-screen flex overflow-hidden">
+    <div className="h-screen w-screen flex overflow-hidden bg-background">
       <AppSidebar />
-      {/* On mobile, sidebar is fixed overlay so we don't reserve space for it */}
-      <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300`}>
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <Topbar />
-        <main className="flex-1 overflow-auto bg-background">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
           <Outlet />
         </main>
       </div>

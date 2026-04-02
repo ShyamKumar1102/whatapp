@@ -1,132 +1,100 @@
-import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, MessageSquare, Users, Megaphone,
   FileText, ShieldCheck, BarChart3, Settings, Moon, Sun,
   ChevronLeft, ChevronRight, MessageCircle,
-  Bell, Columns, ArrowLeftRight, X,
+  Bell, Columns, ArrowLeftRight,
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard',    path: '/' },
-  { icon: MessageSquare,   label: 'Chats',        path: '/chats', badge: 6 },
-  { icon: Users,           label: 'Contacts',     path: '/contacts' },
-  { icon: Megaphone,       label: 'Campaigns',    path: '/campaigns' },
-  { icon: Columns,         label: 'Pipeline',     path: '/pipeline' },
-  { icon: Bell,            label: 'Reminders',    path: '/reminders' },
-  { icon: ArrowLeftRight,  label: 'Import/Export',path: '/import-export' },
-  { icon: FileText,        label: 'Templates',    path: '/templates' },
-  { icon: ShieldCheck,     label: 'Verification', path: '/verification' },
-  { icon: BarChart3,       label: 'Analytics',    path: '/analytics' },
-  { icon: Settings,        label: 'Settings',     path: '/settings' },
+  { icon: LayoutDashboard, label: 'Dashboard',     path: '/' },
+  { icon: MessageSquare,   label: 'Chats',         path: '/chats', badge: 6 },
+  { icon: Users,           label: 'Contacts',      path: '/contacts' },
+  { icon: Megaphone,       label: 'Campaigns',     path: '/campaigns' },
+  { icon: Columns,         label: 'Pipeline',      path: '/pipeline' },
+  { icon: Bell,            label: 'Reminders',     path: '/reminders' },
+  { icon: ArrowLeftRight,  label: 'Import/Export', path: '/import-export' },
+  { icon: FileText,        label: 'Templates',     path: '/templates' },
+  { icon: ShieldCheck,     label: 'Verification',  path: '/verification' },
+  { icon: BarChart3,       label: 'Analytics',     path: '/analytics' },
+  { icon: Settings,        label: 'Settings',      path: '/settings' },
 ];
 
 export default function AppSidebar() {
   const location = useLocation();
   const { isDarkMode, toggleDarkMode, sidebarCollapsed, toggleSidebar } = useStore();
 
-  // Auto-collapse on small screens
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 768 && !sidebarCollapsed) {
-        toggleSidebar();
-      }
-    };
-    window.addEventListener('resize', handleResize);
-    handleResize();
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // Close sidebar on nav click on mobile
-  const handleNavClick = () => {
-    if (window.innerWidth < 768 && !sidebarCollapsed) toggleSidebar();
-  };
-
   return (
-    <>
-      {/* Mobile overlay */}
-      {!sidebarCollapsed && (
-        <div
-          className="fixed inset-0 bg-black/40 z-20 md:hidden"
-          onClick={toggleSidebar}
-        />
+    <aside
+      className={cn(
+        'h-screen flex flex-col bg-card border-r border-border transition-all duration-300 shrink-0 relative',
+        sidebarCollapsed ? 'w-16' : 'w-60'
       )}
-
-      <aside
-        className={cn(
-          'h-screen flex flex-col bg-card border-r border-border transition-all duration-300 relative shrink-0 z-30',
-          sidebarCollapsed ? 'w-16' : 'w-60',
-          // On mobile: fixed overlay when open
-          !sidebarCollapsed && 'fixed md:relative'
+    >
+      {/* Logo */}
+      <div className="h-14 flex items-center gap-2 px-4 border-b border-border shrink-0">
+        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
+          <MessageCircle className="w-4 h-4 text-primary-foreground" />
+        </div>
+        {!sidebarCollapsed && (
+          <span className="font-semibold text-foreground text-sm tracking-tight">CRM</span>
         )}
-      >
-        {/* Logo */}
-        <div className="h-14 flex items-center gap-2 px-4 border-b border-border shrink-0">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-            <MessageCircle className="w-4 h-4 text-primary-foreground" />
-          </div>
-          {!sidebarCollapsed && (
-            <span className="font-semibold text-foreground text-sm tracking-tight flex-1">CRM</span>
-          )}
-          {!sidebarCollapsed && (
-            <button onClick={toggleSidebar} className="md:hidden p-1 rounded hover:bg-surface-hover">
-              <X className="w-4 h-4 text-muted-foreground" />
-            </button>
-          )}
-        </div>
+      </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                onClick={handleNavClick}
-                className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors relative group',
-                  isActive
-                    ? 'bg-accent text-accent-foreground font-medium'
-                    : 'text-muted-foreground hover:bg-surface-hover hover:text-foreground'
-                )}
-              >
-                <item.icon className="w-4 h-4 shrink-0" />
-                {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
-                {item.badge && item.badge > 0 && (
-                  <span className={cn(
-                    'min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-semibold',
-                    sidebarCollapsed ? 'absolute -top-0.5 -right-0.5' : 'ml-auto'
-                  )}>
-                    {item.badge}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </nav>
+      {/* Nav */}
+      <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto scrollbar-thin">
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors relative',
+                isActive
+                  ? 'bg-accent text-accent-foreground font-medium'
+                  : 'text-muted-foreground hover:bg-surface-hover hover:text-foreground'
+              )}
+            >
+              <item.icon className="w-4 h-4 shrink-0" />
+              {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
+              {item.badge > 0 && (
+                <span className={cn(
+                  'min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-semibold',
+                  sidebarCollapsed ? 'absolute -top-0.5 -right-0.5' : 'ml-auto'
+                )}>
+                  {item.badge}
+                </span>
+              )}
+            </Link>
+          );
+        })}
+      </nav>
 
-        {/* Bottom */}
-        <div className="border-t border-border p-2 shrink-0">
-          <button
-            onClick={toggleDarkMode}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors w-full"
-          >
-            {isDarkMode ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
-            {!sidebarCollapsed && <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>}
-          </button>
-        </div>
-
-        {/* Collapse toggle — desktop only */}
+      {/* Dark mode */}
+      <div className="border-t border-border p-2 shrink-0">
         <button
-          onClick={toggleSidebar}
-          className="hidden md:flex absolute -right-3 top-20 w-6 h-6 rounded-full bg-card border border-border items-center justify-center shadow-sm hover:bg-surface-hover transition-colors"
+          onClick={toggleDarkMode}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors w-full"
         >
-          {sidebarCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
+          {isDarkMode
+            ? <Sun className="w-4 h-4 shrink-0" />
+            : <Moon className="w-4 h-4 shrink-0" />}
+          {!sidebarCollapsed && <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>}
         </button>
-      </aside>
-    </>
+      </div>
+
+      {/* Collapse toggle */}
+      <button
+        onClick={toggleSidebar}
+        className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-card border border-border flex items-center justify-center shadow-sm hover:bg-surface-hover transition-colors z-10"
+      >
+        {sidebarCollapsed
+          ? <ChevronRight className="w-3 h-3" />
+          : <ChevronLeft className="w-3 h-3" />}
+      </button>
+    </aside>
   );
 }
