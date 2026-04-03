@@ -30,4 +30,8 @@ export default defineConfig({
     extensions: ['.js', '.jsx', '.ts', '.tsx'],
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
   },
+  esbuild: {
+    include: /src\/.*\.[jt]sx?$/,
+    exclude: [],
+  },
 });
