@@ -65,7 +65,11 @@ export default function CampaignsPage() {
     }
   }, [location.state]);
 
-  const openNew = () => { setEditTarget(null); setForm(emptyForm); setImagePreview(null); setDialogOpen(true); };
+  const handleOpenNew    = () => { setEditTarget(null); setForm(emptyForm); setImagePreview(null); setDialogOpen(true); };
+  const handleConfirmSend   = (campaign) => setConfirmSendId(campaign);
+  const handleConfirmDelete = (id) => setConfirmDeleteId(id);
+  const handleCancelSend    = () => setConfirmSendId(null);
+  const handleCancelDelete  = () => setConfirmDeleteId(null);
   const openEdit = (c) => { setEditTarget(c); setForm({ name: c.name, template: c.template_name || '', scheduledAt: c.scheduled_at || '', message: c.message || '', imageUrl: c.image_url || '', imageFile: null }); setImagePreview(c.image_url || null); setDialogOpen(true); };
 
   const handleImageChange = (e) => {
@@ -142,7 +146,7 @@ export default function CampaignsPage() {
             <span className="text-[10px] font-bold">PDF</span> Export
           </Button>
           {isAdmin && (
-            <Button size="sm" className="gap-1.5" onClick={openNew}>
+            <Button size="sm" className="gap-1.5" onClick={handleOpenNew}>
               <Plus className="w-4 h-4" /> New Campaign
             </Button>
           )}
@@ -179,7 +183,7 @@ export default function CampaignsPage() {
                   </div>
                   <div className="flex items-center gap-1">
                     {isAdmin && campaign.status === 'draft' && (
-                      <Button size="sm" variant="default" className="gap-1.5 text-xs" onClick={() => setConfirmSendId(campaign)}>
+                      <Button size="sm" variant="default" className="gap-1.5 text-xs" onClick={() => handleConfirmSend(campaign)}>
                         <Send className="w-3 h-3" /> Send
                       </Button>
                     )}
@@ -189,7 +193,7 @@ export default function CampaignsPage() {
                       </Button>
                     )}
                     {isAdmin && (
-                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setConfirmDeleteId(campaign.id)}>
+                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleConfirmDelete(campaign.id)}>
                         <Trash2 className="w-3 h-3" />
                       </Button>
                     )}
@@ -211,8 +215,8 @@ export default function CampaignsPage() {
         </div>
       )}
 
-      <ConfirmDialog open={!!confirmSendId} title="Send Campaign" description={`Send "${confirmSendId?.name}" to all contacts?`} confirmLabel="Send" variant="default" onConfirm={() => handleSend(confirmSendId)} onCancel={() => setConfirmSendId(null)} />
-      <ConfirmDialog open={!!confirmDeleteId} title="Delete Campaign" description="This campaign will be permanently deleted." confirmLabel="Delete" onConfirm={() => handleDelete(confirmDeleteId)} onCancel={() => setConfirmDeleteId(null)} />
+      <ConfirmDialog open={!!confirmSendId} title="Send Campaign" description={`Send "${confirmSendId?.name}" to all contacts?`} confirmLabel="Send" variant="default" onConfirm={() => handleSend(confirmSendId)} onCancel={handleCancelSend} />
+      <ConfirmDialog open={!!confirmDeleteId} title="Delete Campaign" description="This campaign will be permanently deleted." confirmLabel="Delete" onConfirm={() => handleDelete(confirmDeleteId)} onCancel={handleCancelDelete} />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

@@ -13,7 +13,7 @@ export default function LoginPage() {
   const { login } = useStore();
 
   const location = useLocation();
-  const [form,    setForm]    = useState({ email: 'admin@crm.com', password: 'admin123' });
+  const [form,    setForm]    = useState({ email: '', password: '' });
   const [error,   setError]   = useState('');
   const registered = location.state?.registered;
   const [loading, setLoading] = useState(false);
@@ -132,7 +132,7 @@ export default function LoginPage() {
           </Button>
 
           <p className="text-xs text-center text-muted-foreground pt-1">
-            Default: admin@crm.com / admin123
+            Contact your admin for credentials
           </p>
         </form>
         ) : (

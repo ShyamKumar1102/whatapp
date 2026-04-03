@@ -40,7 +40,12 @@ export default function TemplatesPage() {
   const [form, setForm] = useState({ name: '', category: 'Marketing', language: 'en_US', body: '' });
   const [submitForm, setSubmitForm] = useState({ name: '', category: 'MARKETING', language: 'en_US', body: '' });
 
-  const fetchTemplates = async () => {
+  const handleConfirmDelete = (id) => setConfirmDeleteId(id);
+  const handleCancelDelete  = () => setConfirmDeleteId(null);
+  const handleOpenUpload    = () => setUploadOpen(true);
+  const handleOpenSubmit    = () => setSubmitOpen(true);
+  const handleOpenCreate    = () => setDialogOpen(true);
+  const handleCloseUpload   = (v) => { setUploadOpen(v); setUploadResult(null); };
     setLoading(true);
     try {
       const res  = await fetch(`${BACKEND}/api/templates`, { headers: getHeaders() });
@@ -150,13 +155,13 @@ export default function TemplatesPage() {
           </Button>
           {isAdmin && (
             <>
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setUploadOpen(true)}>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={handleOpenUpload}>
                 <Upload className="w-4 h-4" /> Bulk Upload
               </Button>
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setSubmitOpen(true)}>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={handleOpenSubmit}>
                 <FileUp className="w-4 h-4" /> Submit to Meta
               </Button>
-              <Button size="sm" className="gap-1.5" onClick={() => setDialogOpen(true)}>
+              <Button size="sm" className="gap-1.5" onClick={handleOpenCreate}>
                 <Plus className="w-4 h-4" /> Create
               </Button>
             </>
@@ -193,9 +198,9 @@ export default function TemplatesPage() {
               <div className="flex items-center justify-between mt-3">
                 <p className="text-[10px] text-muted-foreground">Created {template.createdAt || template.created_at?.split('T')[0]}</p>
                 <div className="flex gap-1">
-                  <button onClick={() => handleCopy(template.body)} className="p-1.5 rounded hover:bg-muted transition-colors" title="Copy"><Copy className="w-3.5 h-3.5 text-muted-foreground" /></button>
+                  {isAdmin && <button onClick={() => handleCopy(template.body)} className="p-1.5 rounded hover:bg-muted transition-colors" title="Copy"><Copy className="w-3.5 h-3.5 text-muted-foreground" /></button>}
                   {isAdmin && <button onClick={() => handleUseTemplate(template)} className="p-1.5 rounded hover:bg-muted transition-colors" title="Use in campaign"><Send className="w-3.5 h-3.5 text-muted-foreground" /></button>}
-                  {isAdmin && <button onClick={() => setConfirmDeleteId(template.id)} className="p-1.5 rounded hover:bg-muted transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5 text-destructive" /></button>}
+                  {isAdmin && <button onClick={() => handleConfirmDelete(template.id)} className="p-1.5 rounded hover:bg-muted transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5 text-destructive" /></button>}
                 </div>
               </div>
             </div>
@@ -203,7 +208,7 @@ export default function TemplatesPage() {
         })}
       </div>
 
-      <ConfirmDialog open={!!confirmDeleteId} title="Delete Template" description="This template will be permanently deleted." confirmLabel="Delete" onConfirm={() => handleDelete(confirmDeleteId)} onCancel={() => setConfirmDeleteId(null)} />
+      <ConfirmDialog open={!!confirmDeleteId} title="Delete Template" description="This template will be permanently deleted." confirmLabel="Delete" onConfirm={() => handleDelete(confirmDeleteId)} onCancel={handleCancelDelete} />
 
       {/* Create Template Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -228,7 +233,7 @@ export default function TemplatesPage() {
       </Dialog>
 
       {/* Bulk Upload Dialog */}
-      <Dialog open={uploadOpen} onOpenChange={v => { setUploadOpen(v); setUploadResult(null); }}>
+      <Dialog open={uploadOpen} onOpenChange={handleCloseUpload}>
         <DialogContent>
           <DialogHeader><DialogTitle>Bulk Upload Templates</DialogTitle></DialogHeader>
           <div className="space-y-4 pt-2">

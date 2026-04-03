@@ -34,7 +34,15 @@ export default function VerificationPage() {
     toast.success('Verification request submitted! Meta will review within 2-3 business days.');
   };
 
-  const s = statusConfig[status];
+  const handleGstClick = () => gstRef.current?.click();
+  const handlePanClick = () => panRef.current?.click();
+  const handleGstChange = (e) => handleFileUpload('gst', e.target.files[0]);
+  const handlePanChange = (e) => handleFileUpload('pan', e.target.files[0]);
+
+  const docConfig = [
+    { key: 'gst', label: 'GST Certificate', ref: gstRef, onClick: handleGstClick, onChange: handleGstChange },
+    { key: 'pan', label: 'PAN Card',         ref: panRef, onClick: handlePanClick, onChange: handlePanChange },
+  ];
 
   return (
     <div className="p-6 space-y-6 animate-fade-in max-w-3xl">
@@ -98,16 +106,13 @@ export default function VerificationPage() {
           <Upload className="w-4 h-4" /> Documents
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[
-            { key: 'gst', label: 'GST Certificate', ref: gstRef },
-            { key: 'pan', label: 'PAN Card', ref: panRef },
-          ].map(({ key, label, ref }) => (
+          {docConfig.map(({ key, label, ref, onClick, onChange }) => (
             <div
               key={key}
-              onClick={() => ref.current?.click()}
+              onClick={onClick}
               className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 transition-colors cursor-pointer"
             >
-              <input ref={ref} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={e => handleFileUpload(key, e.target.files[0])} />
+              <input ref={ref} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={onChange} />
               {docs[key] ? (
                 <>
                   <CheckCircle className="w-6 h-6 text-primary mx-auto mb-2" />
