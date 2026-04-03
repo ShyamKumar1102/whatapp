@@ -62,7 +62,7 @@ export default function AgentsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Agents</h1>
@@ -74,13 +74,40 @@ export default function AgentsPage() {
           </Button>
           {isAdmin && (
             <Button size="sm" className="gap-1.5" onClick={() => { setForm(emptyForm); setError(''); setDialogOpen(true); }}>
-              <Plus className="w-4 h-4" /> Add Agent
+              <Plus className="w-4 h-4" /> Add
             </Button>
           )}
         </div>
       </div>
 
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
+      {/* Mobile card view */}
+      <div className="sm:hidden space-y-3">
+        {loading ? Array(3).fill(0).map((_, i) => <div key={i} className="bg-card rounded-xl border border-border p-4 animate-pulse h-20" />) :
+        agents.length === 0 ? <p className="text-center text-sm text-muted-foreground py-8">No agents found</p> :
+        agents.map(agent => {
+          const role = roleConfig[agent.role] || roleConfig.agent;
+          return (
+            <div key={agent.id} className="bg-card rounded-xl border border-border p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  {agent.role === 'admin' ? <ShieldCheck className="w-5 h-5 text-primary" /> : <User className="w-5 h-5 text-primary" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-foreground text-sm">{agent.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{agent.email}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${role.className}`}>{role.label}</span>
+                  {isAdmin && <button onClick={() => setConfirmId(agent.id)} className="p-1.5 rounded hover:bg-muted"><Trash2 className="w-4 h-4 text-destructive" /></button>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden sm:block bg-card rounded-xl border border-border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/30">
@@ -107,17 +134,13 @@ export default function AgentsPage() {
                   <td className="py-3 px-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        {agent.role === 'admin'
-                          ? <ShieldCheck className="w-4 h-4 text-primary" />
-                          : <User className="w-4 h-4 text-primary" />}
+                        {agent.role === 'admin' ? <ShieldCheck className="w-4 h-4 text-primary" /> : <User className="w-4 h-4 text-primary" />}
                       </div>
                       <span className="font-medium text-foreground">{agent.name}</span>
                     </div>
                   </td>
                   <td className="py-3 px-4 text-muted-foreground">{agent.email}</td>
-                  <td className="py-3 px-4">
-                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${role.className}`}>{role.label}</span>
-                  </td>
+                  <td className="py-3 px-4"><span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${role.className}`}>{role.label}</span></td>
                   <td className="py-3 px-4">
                     <span className="flex items-center gap-1.5 text-xs">
                       <span className={`w-1.5 h-1.5 rounded-full ${agent.is_active !== false ? 'bg-green-500' : 'bg-gray-400'}`} />
@@ -127,9 +150,7 @@ export default function AgentsPage() {
                   {isAdmin && (
                     <td className="py-3 px-4">
                       <div className="flex items-center justify-center gap-1">
-                        <button onClick={() => setConfirmId(agent.id)} className="p-1.5 rounded hover:bg-muted transition-colors" title="Delete">
-                          <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                        </button>
+                        <button onClick={() => setConfirmId(agent.id)} className="p-1.5 rounded hover:bg-muted transition-colors" title="Delete"><Trash2 className="w-3.5 h-3.5 text-destructive" /></button>
                       </div>
                     </td>
                   )}

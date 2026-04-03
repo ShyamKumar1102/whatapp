@@ -96,25 +96,25 @@ export default function ContactsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Contacts</h1>
           <p className="text-sm text-muted-foreground mt-1">{contacts.length} total contacts</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           {selected.length > 0 && (
             <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={handleSendCampaign}>
               <Send className="w-3.5 h-3.5" /> Campaign ({selected.length})
             </Button>
           )}
           <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => exportContactsPDF(contacts)}>
-            <span className="text-[10px] font-bold">PDF</span> Export
+            <span className="text-[10px] font-bold">PDF</span>
           </Button>
           {isAdmin && (
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" className="gap-1.5"><Plus className="w-4 h-4" /> Add Contact</Button>
+                <Button size="sm" className="gap-1.5"><Plus className="w-4 h-4" /> Add</Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader><DialogTitle>Add New Contact</DialogTitle></DialogHeader>
@@ -130,8 +130,8 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Search contacts..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 bg-muted/50 border-none text-sm" />
         </div>
@@ -143,13 +143,39 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      <div className="bg-card rounded-xl border border-border overflow-hidden">
+      {/* Mobile card view */}
+      <div className="sm:hidden space-y-3">
+        {filtered.map(contact => (
+          <div key={contact.id} className="bg-card rounded-xl border border-border p-4">
+            <div className="flex items-center gap-3 mb-3">
+              <input type="checkbox" checked={selected.includes(contact.id)} onChange={() => toggleSelect(contact.id)} className="rounded" />
+              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <span className="text-xs font-semibold text-primary">{(contact.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-foreground text-sm truncate">{contact.name}</p>
+                <p className="text-xs text-muted-foreground">{contact.phone}</p>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={() => handleMessage(contact)} className="p-1.5 rounded hover:bg-muted"><MessageSquare className="w-4 h-4 text-muted-foreground" /></button>
+                {isAdmin && <button onClick={() => setConfirmDeleteId(contact.id)} className="p-1.5 rounded hover:bg-muted"><Trash2 className="w-4 h-4 text-destructive" /></button>}
+              </div>
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {(contact.tags || []).map(tag => <Badge key={tag} variant="secondary" className="text-[10px]">{tag}</Badge>)}
+              <button onClick={() => handleEditTags(contact)} className="p-0.5 rounded hover:bg-muted"><Tag className="w-3 h-3 text-muted-foreground" /></button>
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && <p className="text-center text-sm text-muted-foreground py-8">No contacts found</p>}
+      </div>
+
+      {/* Desktop table view */}
+      <div className="hidden sm:block bg-card rounded-xl border border-border overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/30">
-              <th className="py-3 px-4 w-8">
-                <input type="checkbox" checked={selected.length === filtered.length && filtered.length > 0} onChange={toggleSelectAll} className="rounded" />
-              </th>
+              <th className="py-3 px-4 w-8"><input type="checkbox" checked={selected.length === filtered.length && filtered.length > 0} onChange={toggleSelectAll} className="rounded" /></th>
               <th className="text-left py-3 px-4 font-medium text-muted-foreground">Name</th>
               <th className="text-left py-3 px-4 font-medium text-muted-foreground">Phone</th>
               <th className="text-left py-3 px-4 font-medium text-muted-foreground">Tags</th>
@@ -160,9 +186,7 @@ export default function ContactsPage() {
           <tbody>
             {filtered.map(contact => (
               <tr key={contact.id} className="border-b border-border/50 last:border-0 hover:bg-surface-hover transition-colors">
-                <td className="py-3 px-4">
-                  <input type="checkbox" checked={selected.includes(contact.id)} onChange={() => toggleSelect(contact.id)} className="rounded" />
-                </td>
+                <td className="py-3 px-4"><input type="checkbox" checked={selected.includes(contact.id)} onChange={() => toggleSelect(contact.id)} className="rounded" /></td>
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
@@ -175,9 +199,7 @@ export default function ContactsPage() {
                 <td className="py-3 px-4">
                   <div className="flex gap-1 flex-wrap items-center">
                     {(contact.tags || []).map(tag => <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">{tag}</Badge>)}
-                    <button onClick={() => handleEditTags(contact)} className="p-0.5 rounded hover:bg-muted transition-colors" title="Edit tags">
-                      <Tag className="w-3 h-3 text-muted-foreground" />
-                    </button>
+                    <button onClick={() => handleEditTags(contact)} className="p-0.5 rounded hover:bg-muted transition-colors" title="Edit tags"><Tag className="w-3 h-3 text-muted-foreground" /></button>
                   </div>
                 </td>
                 <td className="py-3 px-4">
@@ -194,9 +216,7 @@ export default function ContactsPage() {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
-              <tr><td colSpan={6} className="py-12 text-center text-muted-foreground">No contacts found</td></tr>
-            )}
+            {filtered.length === 0 && <tr><td colSpan={6} className="py-12 text-center text-muted-foreground">No contacts found</td></tr>}
           </tbody>
         </table>
       </div>

@@ -47,7 +47,7 @@ export default function VerificationPage() {
   ];
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in max-w-3xl">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in max-w-3xl">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Meta Verification</h1>

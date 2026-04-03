@@ -112,8 +112,7 @@ export default function Reminders() {
   };
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
-      <div className="flex items-start justify-between">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Reminders</h1>
           <p className="text-sm text-muted-foreground mt-1">
