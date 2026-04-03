@@ -28,7 +28,7 @@ export default function ChatsPage() {
 
   const handleDeleteForEveryone = async (messageId) => {
     useStore.setState(state => ({ messages: state.messages.map(m => m.id === messageId ? { ...m, deleted_for_everyone: true } : m) }));
-    try { await fetch(BACKEND + "/api/messages/ + messageId, { method: DELETE, headers: getAuthHeaders() }); } catch {}
+    try { await fetch(`${BACKEND}/api/messages/${messageId}`, { method: 'DELETE', headers: getAuthHeaders() }); } catch {}
  };
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
