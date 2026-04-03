@@ -26,6 +26,7 @@ const tables = [
   { TableName: process.env.DYNAMO_TABLE_REMINDERS      || 'crm_reminders' },
   { TableName: process.env.DYNAMO_TABLE_CAMPAIGNS      || 'crm_campaigns' },
   { TableName: process.env.DYNAMO_TABLE_PIPELINE       || 'crm_pipeline_stages' },
+  { TableName: 'crm_templates' },
 ];
 
 const createTable = async (tableName) => {

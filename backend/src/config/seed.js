@@ -1,219 +1,77 @@
-import { connectDB } from './database.js';
-import { Contact, Chat, Message, Pipeline, PipelineActivity } from '../models/index.js';
+import { config } from 'dotenv';
+config();
 
-const seedData = async () => {
-  try {
-    console.log('🌱 Starting database seeding...');
+// dynamic import so dotenv runs first
+const { TABLES, dbPut, generateId } = await import('./database.js');
 
-    // Connect to database
-    await connectDB();
+const now = new Date().toISOString();
 
-    // Clear existing data
-    await PipelineActivity.destroy({ where: {} });
-    await Pipeline.destroy({ where: {} });
-    await Message.destroy({ where: {} });
-    await Chat.destroy({ where: {} });
-    await Contact.destroy({ where: {} });
+const contacts = [
+  { id: generateId(), name: 'Rahul Sharma',  phone: '+919876543210', tags: ['VIP','Retail'],      is_online: true,  pipeline_status: 'lead',     stage_id: '1', created_at: now, updated_at: now },
+  { id: generateId(), name: 'Priya Patel',   phone: '+918765432109', tags: ['New'],               is_online: false, last_seen: '2 hours ago',    pipeline_status: 'prospect', stage_id: '2', created_at: now, updated_at: now },
+  { id: generateId(), name: 'Amit Kumar',    phone: '+917654321098', tags: ['Enterprise'],        is_online: true,  pipeline_status: 'qualified',stage_id: '3', created_at: now, updated_at: now },
+  { id: generateId(), name: 'Sneha Reddy',   phone: '+916543210987', tags: ['Retail'],            is_online: false, last_seen: '30 min ago',     pipeline_status: 'lead',     stage_id: '1', created_at: now, updated_at: now },
+  { id: generateId(), name: 'Vikram Singh',  phone: '+915432109876', tags: ['VIP','Enterprise'],  is_online: true,  pipeline_status: 'closed',   stage_id: '4', created_at: now, updated_at: now },
+];
 
-    // Seed Contacts
-    const contacts = await Contact.bulkCreate([
-      {
-        name: 'John Smith',
-        phone: '+1234567890',
-        email: 'john.smith@example.com',
-        status: 'active',
-        tags: ['customer', 'vip'],
-        notes: 'Important client from TechCorp'
-      },
-      {
-        name: 'Sarah Johnson',
-        phone: '+1234567891',
-        email: 'sarah.johnson@startup.com',
-        status: 'active',
-        tags: ['lead', 'startup'],
-        notes: 'Interested in marketing automation'
-      },
-      {
-        name: 'Mike Wilson',
-        phone: '+1234567892',
-        email: 'mike.wilson@global.com',
-        status: 'active',
-        tags: ['enterprise', 'decision-maker'],
-        notes: 'CTO at Global Solutions'
-      },
-      {
-        name: 'Emma Davis',
-        phone: '+1234567893',
-        email: 'emma.davis@local.com',
-        status: 'active',
-        tags: ['small-business'],
-        notes: 'Local business owner'
-      },
-      {
-        name: 'Alex Brown',
-        phone: '+1234567894',
-        email: 'alex.brown@company.com',
-        status: 'active',
-        tags: ['prospect'],
-        notes: 'Potential customer'
-      }
-    ]);
+const stages = [
+  { id: '1', name: 'New Lead',   color: 'blue',   position: 1 },
+  { id: '2', name: 'Qualified',  color: 'yellow', position: 2 },
+  { id: '3', name: 'Proposal',   color: 'orange', position: 3 },
+  { id: '4', name: 'Closed Won', color: 'green',  position: 4 },
+];
 
-    console.log(`✅ Created ${contacts.length} contacts`);
+const run = async () => {
+  console.log('\n🌱 Seeding DynamoDB...\n');
 
-    // Seed Pipeline Deals
-    const pipelines = await Pipeline.bulkCreate([
-      {
-        title: 'Enterprise Software License',
-        company: 'TechCorp Inc.',
-        contact_person: 'John Smith',
-        email: 'john.smith@example.com',
-        phone: '+1234567890',
-        value: 45000.00,
-        stage: 'proposal',
-        priority: 'high',
-        probability: 75,
-        expected_close_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-        assigned_to: 'Sales Team',
-        source: 'Website',
-        tags: ['enterprise', 'software'],
-        notes: 'Large enterprise deal with high potential'
-      },
-      {
-        title: 'Marketing Automation Setup',
-        company: 'StartupXYZ',
-        contact_person: 'Sarah Johnson',
-        email: 'sarah.johnson@startup.com',
-        phone: '+1234567891',
-        value: 12500.00,
-        stage: 'qualified',
-        priority: 'medium',
-        probability: 60,
-        expected_close_date: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
-        assigned_to: 'Marketing Team',
-        source: 'Referral',
-        tags: ['marketing', 'automation'],
-        notes: 'Startup looking for marketing automation solution'
-      },
-      {
-        title: 'Cloud Migration Project',
-        company: 'Global Solutions',
-        contact_person: 'Mike Wilson',
-        email: 'mike.wilson@global.com',
-        phone: '+1234567892',
-        value: 78000.00,
-        stage: 'negotiation',
-        priority: 'high',
-        probability: 85,
-        expected_close_date: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000),
-        assigned_to: 'Technical Team',
-        source: 'Cold Outreach',
-        tags: ['cloud', 'migration'],
-        notes: 'Complex cloud migration project'
-      },
-      {
-        title: 'CRM Integration',
-        company: 'Local Business',
-        contact_person: 'Emma Davis',
-        email: 'emma.davis@local.com',
-        phone: '+1234567893',
-        value: 8900.00,
-        stage: 'lead',
-        priority: 'low',
-        probability: 25,
-        expected_close_date: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
-        assigned_to: 'Sales Team',
-        source: 'Social Media',
-        tags: ['crm', 'integration'],
-        notes: 'Small business CRM needs'
-      },
-      {
-        title: 'E-commerce Platform',
-        company: 'Online Store Co.',
-        contact_person: 'Alex Brown',
-        email: 'alex.brown@company.com',
-        phone: '+1234567894',
-        value: 25000.00,
-        stage: 'closed_won',
-        priority: 'medium',
-        probability: 100,
-        expected_close_date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // 10 days ago
-        assigned_to: 'Development Team',
-        source: 'Partner',
-        tags: ['ecommerce', 'platform'],
-        notes: 'Successfully closed e-commerce deal'
-      }
-    ]);
-
-    console.log(`✅ Created ${pipelines.length} pipeline deals`);
-
-    // Seed Pipeline Activities
-    const activities = [];
-    for (const pipeline of pipelines) {
-      activities.push({
-        pipeline_id: pipeline.id,
-        action: 'Deal created',
-        description: `New deal "${pipeline.title}" created`,
-        user: pipeline.assigned_to,
-        new_value: { stage: pipeline.stage, value: pipeline.value }
-      });
-
-      if (pipeline.stage !== 'lead') {
-        activities.push({
-          pipeline_id: pipeline.id,
-          action: 'Stage changed',
-          description: `Deal moved to ${pipeline.stage}`,
-          user: pipeline.assigned_to,
-          old_value: { stage: 'lead' },
-          new_value: { stage: pipeline.stage }
-        });
-      }
-    }
-
-    await PipelineActivity.bulkCreate(activities);
-    console.log(`✅ Created ${activities.length} pipeline activities`);
-
-    // Seed Chats
-    const chats = [];
-    for (let i = 0; i < contacts.length; i++) {
-      const chat = await Chat.create({
-        contact_id: contacts[i].id,
-        status: i % 3 === 0 ? 'resolved' : 'active',
-        assigned_agent: i % 2 === 0 ? 'Agent Smith' : 'Agent Johnson',
-        last_message: `Sample message from ${contacts[i].name}`,
-        last_message_time: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000),
-        unread_count: Math.floor(Math.random() * 5)
-      });
-      chats.push(chat);
-    }
-
-    console.log(`✅ Created ${chats.length} chats`);
-
-    // Seed Messages
-    const messages = [];
-    for (const chat of chats) {
-      const messageCount = Math.floor(Math.random() * 10) + 5;
-      for (let i = 0; i < messageCount; i++) {
-        messages.push({
-          chat_id: chat.id,
-          content: `Sample message ${i + 1} for chat ${chat.id}`,
-          type: 'text',
-          sender: i % 2 === 0 ? 'contact' : 'agent',
-          status: 'read',
-          created_at: new Date(Date.now() - (messageCount - i) * 60 * 60 * 1000)
-        });
-      }
-    }
-
-    await Message.bulkCreate(messages);
-    console.log(`✅ Created ${messages.length} messages`);
-
-    console.log('🎉 Database seeding completed successfully!');
-    process.exit(0);
-  } catch (error) {
-    console.error('❌ Error seeding database:', error);
-    process.exit(1);
+  for (const s of stages) {
+    await dbPut(TABLES.PIPELINE_STAGES, s);
+    console.log(`✅ Stage: ${s.name}`);
   }
+
+  const convIds = [];
+  for (const c of contacts) {
+    await dbPut(TABLES.CONTACTS, c);
+    console.log(`✅ Contact: ${c.name}`);
+
+    const convId = generateId();
+    convIds.push({ convId, contact: c });
+    await dbPut(TABLES.CONVERSATIONS, {
+      id: convId, contact_id: c.id, status: 'open',
+      channel: 'whatsapp', pushed_to_admin: false,
+      created_at: now, updated_at: now,
+    });
+  }
+
+  for (const { convId, contact } of convIds.slice(0, 2)) {
+    await dbPut(TABLES.MESSAGES, {
+      id: generateId(), chatId: convId, conversation_id: convId,
+      content: `Hi! I am interested in your services.`,
+      sender: 'contact', status: 'read', type: 'text',
+      timestamp: '10:00 AM', created_at: now,
+    });
+    await dbPut(TABLES.MESSAGES, {
+      id: generateId(), chatId: convId, conversation_id: convId,
+      content: `Hello ${contact.name}! Happy to help. What are you looking for?`,
+      sender: 'agent', status: 'delivered', type: 'text',
+      timestamp: '10:02 AM', created_at: now,
+    });
+  }
+
+  // Seed admin user (password: admin123)
+  await dbPut(TABLES.USERS, {
+    id: 'user-1', name: 'Admin', email: 'admin@crm.com',
+    password_hash: '$2a$10$y70zuWSwg4qbNgVxaZtineRlw7CboCuaRLqQDZFWkZEXdmsl/EY2O',
+    role: 'admin', is_active: true, created_at: now,
+  });
+  await dbPut(TABLES.USERS, {
+    id: 'user-2', name: 'Agent 1', email: 'agent1@crm.com',
+    password_hash: '$2a$10$y70zuWSwg4qbNgVxaZtineRlw7CboCuaRLqQDZFWkZEXdmsl/EY2O',
+    role: 'agent', is_active: true, created_at: now,
+  });
+
+  console.log('\n✅ Seed complete! Login: admin@crm.com / admin123\n');
+  process.exit(0);
 };
 
-seedData();
+run().catch(err => { console.error('❌ Seed failed:', err.message); process.exit(1); });

@@ -1,36 +1,33 @@
-import { db, generateId } from '../config/database.js';
+import { TABLES, dbScan, dbPut, dbUpdate, dbDelete, generateId } from '../config/database.js';
 
-export const getReminders = (req, res) => {
+export const getReminders = async (req, res) => {
   const { status } = req.query;
-  const reminders = status ? db.reminders.filter(r => r.status === status) : db.reminders;
-  res.json({ success: true, data: reminders });
+  const all = await dbScan(TABLES.REMINDERS);
+  const data = status ? all.filter(r => r.status === status) : all;
+  res.json({ success: true, data });
 };
 
-export const createReminder = (req, res) => {
+export const createReminder = async (req, res) => {
   const { title, description, due_date, priority, contact_id } = req.body;
-  if (!title || !due_date) return res.status(400).json({ success: false, message: 'Title and due date are required' });
-  const reminder = { id: generateId(), title, description, due_date: new Date(due_date), priority: priority || 'medium', status: 'pending', contact_id, created_at: new Date() };
-  db.reminders.push(reminder);
+  if (!title) return res.status(400).json({ success: false, message: 'Title is required' });
+  const reminder = { id: generateId(), title, description: description || '', due_date: due_date || null, priority: priority || 'medium', status: 'pending', contact_id: contact_id || null, agent_id: req.user?.id || 'unknown', created_at: new Date().toISOString() };
+  await dbPut(TABLES.REMINDERS, reminder);
   res.status(201).json({ success: true, data: reminder, message: 'Reminder created successfully' });
 };
 
-export const updateReminder = (req, res) => {
-  const index = db.reminders.findIndex(r => r.id === req.params.id);
-  if (index === -1) return res.status(404).json({ success: false, message: 'Reminder not found' });
-  db.reminders[index] = { ...db.reminders[index], ...req.body };
-  res.json({ success: true, data: db.reminders[index], message: 'Reminder updated successfully' });
+export const updateReminder = async (req, res) => {
+  const updated = await dbUpdate(TABLES.REMINDERS, req.params.id, req.body);
+  if (!updated) return res.status(404).json({ success: false, message: 'Reminder not found' });
+  res.json({ success: true, data: updated, message: 'Reminder updated successfully' });
 };
 
-export const deleteReminder = (req, res) => {
-  const index = db.reminders.findIndex(r => r.id === req.params.id);
-  if (index === -1) return res.status(404).json({ success: false, message: 'Reminder not found' });
-  db.reminders.splice(index, 1);
+export const deleteReminder = async (req, res) => {
+  await dbDelete(TABLES.REMINDERS, req.params.id);
   res.json({ success: true, message: 'Reminder deleted successfully' });
 };
 
-export const completeReminder = (req, res) => {
-  const index = db.reminders.findIndex(r => r.id === req.params.id);
-  if (index === -1) return res.status(404).json({ success: false, message: 'Reminder not found' });
-  db.reminders[index].status = 'completed';
-  res.json({ success: true, data: db.reminders[index], message: 'Reminder marked as complete' });
+export const completeReminder = async (req, res) => {
+  const updated = await dbUpdate(TABLES.REMINDERS, req.params.id, { status: 'completed' });
+  if (!updated) return res.status(404).json({ success: false, message: 'Reminder not found' });
+  res.json({ success: true, data: updated, message: 'Reminder marked as complete' });
 };

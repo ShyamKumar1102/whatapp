@@ -12,261 +12,114 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import KanbanBoard from '@/components/pipeline/KanbanBoard';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
+import { useRole } from '@/hooks/useRole';
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-
-const pipelineStages = [
-  { id: 'lead', name: 'New Leads', count: 12, color: 'bg-blue-500' },
-  { id: 'qualified', name: 'Qualified', count: 8, color: 'bg-yellow-500' },
-  { id: 'proposal', name: 'Proposal', count: 5, color: 'bg-orange-500' },
-  { id: 'negotiation', name: 'Negotiation', count: 3, color: 'bg-purple-500' },
-  { id: 'closed', name: 'Closed Won', count: 7, color: 'bg-green-500' },
-];
-
-const pipelineDeals = [
-  {
-    id: 1,
-    title: 'Enterprise Software License',
-    company: 'TechCorp Inc.',
-    value: '$45,000',
-    stage: 'proposal',
-    priority: 'high',
-    lastActivity: '2 hours ago',
-    contact: 'John Smith',
-    probability: 75,
-  },
-  {
-    id: 2,
-    title: 'Marketing Automation Setup',
-    company: 'StartupXYZ',
-    value: '$12,500',
-    stage: 'qualified',
-    priority: 'medium',
-    lastActivity: '1 day ago',
-    contact: 'Sarah Johnson',
-    probability: 60,
-  },
-  {
-    id: 3,
-    title: 'Cloud Migration Project',
-    company: 'Global Solutions',
-    value: '$78,000',
-    stage: 'negotiation',
-    priority: 'high',
-    lastActivity: '3 hours ago',
-    contact: 'Mike Wilson',
-    probability: 85,
-  },
-  {
-    id: 4,
-    title: 'CRM Integration',
-    company: 'Local Business',
-    value: '$8,900',
-    stage: 'lead',
-    priority: 'low',
-    lastActivity: '5 hours ago',
-    contact: 'Emma Davis',
-    probability: 25,
-  },
-];
-
-const pipelineStats = [
-  { label: 'Total Pipeline Value', value: '$144,400', growth: 12.5, icon: TrendingUp },
-  { label: 'Active Deals', value: '35', growth: 8.3, icon: Users },
-  { label: 'Avg Deal Size', value: '$4,126', growth: -2.1, icon: CheckCircle },
-  { label: 'Close Rate', value: '68%', growth: 5.7, icon: AlertCircle },
-];
+const getHeaders = () => {
+  const token = localStorage.getItem('crm_token');
+  return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+};
 
 export default function PipelinePage() {
   const navigate = useNavigate();
   const { setSelectedChat, chats } = useStore();
-  const [activeView, setActiveView] = useState('kanban');
+  const [activeView, setActiveView]   = useState('kanban');
   const [pipelineData, setPipelineData] = useState({ stages: [], totalContacts: 0 });
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading]     = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [addDealOpen, setAddDealOpen] = useState(false);
-  const [dealForm, setDealForm] = useState({ title: '', company: '', value: '', contact: '', stage: 'lead', priority: 'medium' });
+  const [dealForm, setDealForm]       = useState({ title: '', company: '', value: '', contact: '', stage: 'lead', priority: 'medium' });
+  const [deals, setDeals]             = useState([]);
+  const [pipelineStats, setPipelineStats] = useState([
+    { label: 'Total Pipeline Value', value: '—', growth: 0,   icon: TrendingUp },
+    { label: 'Active Deals',         value: '—', growth: 0,   icon: Users },
+    { label: 'Avg Deal Size',        value: '—', growth: 0,   icon: CheckCircle },
+    { label: 'Close Rate',           value: '—', growth: 0,   icon: AlertCircle },
+  ]);
 
-  // Mock data for kanban view
-  useEffect(() => {
-    const mockKanbanData = {
-      stages: [
-        {
-          id: 1,
-          name: 'New',
-          color: 'grey',
-          position: 1,
-          contacts: [
-            {
-              id: 1,
-              name: 'John Smith',
-              phone: '+1234567890',
-              email: 'john@example.com',
-              status: 'active',
-              pipeline_status: 'open',
-              stage_id: 1,
-              updated_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-            },
-            {
-              id: 2,
-              name: 'Sarah Johnson',
-              phone: '+1234567891',
-              email: 'sarah@example.com',
-              status: 'active',
-              pipeline_status: 'pending',
-              stage_id: 1,
-              updated_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
-            }
-          ]
-        },
-        {
-          id: 2,
-          name: 'Qualified',
-          color: 'blue',
-          position: 2,
-          contacts: [
-            {
-              id: 3,
-              name: 'Mike Wilson',
-              phone: '+1234567892',
-              email: 'mike@example.com',
-              status: 'active',
-              pipeline_status: 'open',
-              stage_id: 2,
-              updated_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-            }
-          ]
-        },
-        {
-          id: 3,
-          name: 'Proposal',
-          color: 'orange',
-          position: 3,
-          contacts: [
-            {
-              id: 4,
-              name: 'Emma Davis',
-              phone: '+1234567893',
-              email: 'emma@example.com',
-              status: 'active',
-              pipeline_status: 'open',
-              stage_id: 3,
-              updated_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
-            }
-          ]
-        },
-        {
-          id: 4,
-          name: 'Won',
-          color: 'green',
-          position: 4,
-          contacts: [
-            {
-              id: 5,
-              name: 'Alex Brown',
-              phone: '+1234567894',
-              email: 'alex@example.com',
-              status: 'active',
-              pipeline_status: 'closed',
-              stage_id: 4,
-              updated_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-            }
-          ]
-        }
-      ],
-      totalContacts: 5
-    };
-    setPipelineData(mockKanbanData);
-  }, []);
+  const { isAdmin } = useRole();
 
-  const handleRefresh = async () => {
+  const fetchPipeline = async () => {
     setIsLoading(true);
     try {
-      const token = localStorage.getItem('crm_token');
-      const res = await fetch(`${BACKEND}/api/pipeline`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res  = await fetch(`${BACKEND}/api/pipeline`, { headers: getHeaders() });
       const data = await res.json();
-      if (data.success) setPipelineData(data.data);
+      if (data.success) {
+        setPipelineData(data.data);
+        // compute stats from real data
+        const allContacts = data.data.stages.flatMap(s => s.contacts || []);
+        const closed = data.data.stages.find(s => s.name?.toLowerCase().includes('closed') || s.name?.toLowerCase().includes('won'));
+        const closeRate = allContacts.length > 0 ? Math.round(((closed?.contacts?.length || 0) / allContacts.length) * 100) : 0;
+        setPipelineStats([
+          { label: 'Total Contacts',  value: allContacts.length.toString(), growth: 0, icon: TrendingUp },
+          { label: 'Active Deals',    value: allContacts.filter(c => c.pipeline_status !== 'closed').length.toString(), growth: 0, icon: Users },
+          { label: 'Total Stages',    value: data.data.stages.length.toString(), growth: 0, icon: CheckCircle },
+          { label: 'Close Rate',      value: `${closeRate}%`, growth: 0, icon: AlertCircle },
+        ]);
+      }
     } catch { /* keep existing */ } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAddDeal = () => {
+  useEffect(() => { fetchPipeline(); }, []);
+
+  const handleAddDeal = async () => {
     if (!dealForm.title || !dealForm.company) return;
-    const newDeal = { id: Date.now(), ...dealForm, lastActivity: 'Just now', probability: 25 };
-    // Add to analytics view deals
+    const newDeal = { id: Date.now(), ...dealForm, lastActivity: 'Just now', probability: 25, created_at: new Date().toISOString() };
+    setDeals(prev => [...prev, newDeal]);
     setAddDealOpen(false);
     setDealForm({ title: '', company: '', value: '', contact: '', stage: 'lead', priority: 'medium' });
-    alert(`✅ Deal "${newDeal.title}" added to ${newDeal.stage} stage!`);
   };
 
   const handleOpenChat = (contact) => {
     const existingChat = chats.find(c => c.contact?.phone === contact.phone || c.contact?.name === contact.name);
-    if (existingChat) {
-      setSelectedChat(existingChat.id);
-    }
+    if (existingChat) setSelectedChat(existingChat.id);
     navigate('/chats');
+  };
+
+  const handleMoveContact = async (contactId, newStageId) => {
+    // Optimistic UI update
+    setPipelineData(prev => {
+      const contact = prev.stages.flatMap(s => s.contacts).find(c => c.id === contactId);
+      if (!contact) return prev;
+      return {
+        ...prev,
+        stages: prev.stages.map(stage => ({
+          ...stage,
+          contacts: stage.id === newStageId
+            ? [...stage.contacts.filter(c => c.id !== contactId), { ...contact, stage_id: newStageId, updated_at: new Date().toISOString() }]
+            : stage.contacts.filter(c => c.id !== contactId),
+        })),
+      };
+    });
+    // Persist to backend
+    try {
+      await fetch(`${BACKEND}/api/pipeline/contacts/${contactId}/stage`, {
+        method: 'PATCH', headers: getHeaders(), body: JSON.stringify({ stage_id: newStageId }),
+      });
+    } catch { /* optimistic already applied */ }
   };
 
   const filteredStages = pipelineData.stages.map(stage => ({
     ...stage,
-    contacts: stage.contacts?.filter(c =>
+    contacts: (stage.contacts || []).filter(c =>
       !searchQuery || c.name?.toLowerCase().includes(searchQuery.toLowerCase())
-    ) || []
+    ),
   }));
 
-  const handleMoveContact = async (contactId, newStageId) => {
-    try {
-      setPipelineData(prev => {
-        const newStages = prev.stages.map(stage => ({
-          ...stage,
-          contacts: stage.contacts.filter(contact => contact.id !== contactId)
-        }));
-        
-        const targetStageIndex = newStages.findIndex(stage => stage.id === newStageId);
-        if (targetStageIndex !== -1) {
-          const contactToMove = prev.stages
-            .flatMap(stage => stage.contacts)
-            .find(contact => contact.id === contactId);
-          
-          if (contactToMove) {
-            newStages[targetStageIndex].contacts.push({
-              ...contactToMove,
-              stage_id: newStageId,
-              updated_at: new Date().toISOString()
-            });
-          }
-        }
-        
-        return {
-          ...prev,
-          stages: newStages
-        };
-      });
-    } catch (error) {
-      console.error('Error moving contact:', error);
-    }
-  };
-
-  const getDealsByStage = (stageId) => {
-    return pipelineDeals.filter(deal => deal.stage === stageId);
-  };
+  const getDealsByStage = (stageId) => deals.filter(d => d.stage === stageId);
 
   const getPriorityColor = (priority) => {
     switch (priority) {
-      case 'high': return 'text-red-500 bg-red-50';
+      case 'high':   return 'text-red-500 bg-red-50';
       case 'medium': return 'text-yellow-600 bg-yellow-50';
-      case 'low': return 'text-green-600 bg-green-50';
-      default: return 'text-gray-500 bg-gray-50';
+      case 'low':    return 'text-green-600 bg-green-50';
+      default:       return 'text-gray-500 bg-gray-50';
     }
   };
 
-  const totalContacts = pipelineData.stages.reduce(
-    (total, stage) => total + (stage.contacts?.length || 0), 
-    0
-  );
+  const totalContacts = pipelineData.stages.reduce((t, s) => t + (s.contacts?.length || 0), 0);
 
   return (
     <div className="p-4 lg:p-6 space-y-4 lg:space-y-6 animate-fade-in">
@@ -295,17 +148,19 @@ export default function PipelinePage() {
             </Button>
             <Button 
               variant="outline" 
-              onClick={handleRefresh}
+              onClick={fetchPipeline}
               disabled={isLoading}
               className="flex-1 sm:flex-none"
             >
               <RefreshCw className={`h-4 w-4 sm:mr-2 ${isLoading ? 'animate-spin' : ''}`} />
               <span className="sm:inline hidden">Refresh</span>
             </Button>
+            {isAdmin && (
             <Button variant="default" className="flex-1 sm:flex-none" onClick={() => setAddDealOpen(true)}>
               <Plus className="w-4 h-4 sm:mr-2" />
               <span className="sm:inline hidden">Add Deal</span>
             </Button>
+            )}
           </div>
         </div>
       </div>
@@ -367,16 +222,18 @@ export default function PipelinePage() {
           <div className="rounded-xl border bg-card text-card-foreground shadow-sm p-4 lg:p-6">
             <h2 className="text-sm font-semibold text-foreground mb-4">Pipeline Overview</h2>
             <div className="flex gap-4 lg:gap-6 overflow-x-auto pb-4">
-              {pipelineStages.map((stage) => {
-                const deals = getDealsByStage(stage.id);
+              {filteredStages.map((stage) => {
+                const stageDeals = getDealsByStage(stage.id);
+                const stageColors = ['bg-blue-500','bg-yellow-500','bg-orange-500','bg-purple-500','bg-green-500'];
+                const stageColor = stageColors[filteredStages.indexOf(stage) % stageColors.length];
                 return (
                   <div key={stage.id} className="flex-shrink-0 w-72 lg:w-80">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <div className={cn('w-3 h-3 rounded-full', stage.color)}></div>
+                        <div className={cn('w-3 h-3 rounded-full', stageColor)}></div>
                         <h3 className="text-sm font-medium text-foreground">{stage.name}</h3>
                         <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                          {stage.count}
+                          {getDealsByStage(stage.id).length}
                         </span>
                       </div>
                       <button className="p-1 hover:bg-surface-hover rounded">
@@ -385,7 +242,7 @@ export default function PipelinePage() {
                     </div>
                     
                     <div className="space-y-3 max-h-80 lg:max-h-96 overflow-y-auto">
-                      {deals.map((deal) => (
+                      {stageDeals.map((deal) => (
                         <div key={deal.id} className="rounded-lg border bg-background p-3 lg:p-4 hover:shadow-sm transition-shadow cursor-pointer">
                           <div className="flex items-start justify-between mb-2">
                             <h4 className="text-sm font-medium text-foreground line-clamp-2 pr-2">{deal.title}</h4>

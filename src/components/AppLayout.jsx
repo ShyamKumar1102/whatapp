@@ -1,14 +1,25 @@
 import { useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import AppSidebar from '@/components/AppSidebar';
 import Topbar from '@/components/Topbar';
 import { useStore } from '@/store/useStore.js';
+import useReminderNotifications from '@/hooks/useReminderNotifications';
 
 export default function AppLayout() {
-  const { initApp } = useStore();
+  const { initApp, setSelectedChat } = useStore();
+  const navigate = useNavigate();
+  useReminderNotifications();
 
+  useEffect(() => { initApp(); }, []);
+
+  // Handle click on toast notification → navigate to chat
   useEffect(() => {
-    initApp();
+    const handler = (e) => {
+      setSelectedChat(e.detail.chatId);
+      navigate('/chats');
+    };
+    window.addEventListener('navigate-to-chat', handler);
+    return () => window.removeEventListener('navigate-to-chat', handler);
   }, []);
 
   return (

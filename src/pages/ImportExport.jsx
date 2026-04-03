@@ -2,6 +2,7 @@ import { useState } from 'react';
 import ExportContacts from '@/components/importExport/ExportContacts';
 import ImportContacts from '@/components/importExport/ImportContacts';
 import CSVTemplate from '@/components/importExport/CSVTemplate';
+import { toast } from 'sonner';
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
@@ -48,7 +49,7 @@ export default function ImportExport() {
           triggerDownload(blob, `contacts_${new Date().toISOString().split('T')[0]}.csv`);
         }
       } catch {
-        alert('Export failed. Make sure the backend is running.');
+        toast.error('Export failed. Make sure the backend is running.');
       }
     } finally {
       setIsExporting(false);

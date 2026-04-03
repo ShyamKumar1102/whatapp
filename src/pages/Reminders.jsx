@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
 import ReminderFilters from '@/components/reminders/ReminderFilters';
 import ReminderCard from '@/components/reminders/ReminderCard';
 import ReminderModal from '@/components/reminders/ReminderModal';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { useRole } from '@/hooks/useRole';
 
 export default function Reminders() {
   const [reminders, setReminders] = useState([]);
@@ -12,6 +15,8 @@ export default function Reminders() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReminder, setEditingReminder] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const { isAdmin } = useRole();
 
   const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
   const token = localStorage.getItem('crm_token');
@@ -23,21 +28,8 @@ export default function Reminders() {
       try {
         const res  = await fetch(`${BACKEND}/api/reminders`, { headers });
         const data = await res.json();
-        if (data.success && data.data?.length) setReminders(data.data);
-        else {
-          // fallback seed data
-          setReminders([
-            { id: 1, title: 'Follow up with John Doe', description: 'Check on the proposal status', due_date: new Date(Date.now() + 86400000).toISOString(), status: 'pending', created_at: new Date().toISOString() },
-            { id: 2, title: 'Prepare monthly report', description: 'Compile analytics and performance metrics', due_date: new Date(Date.now() - 86400000).toISOString(), status: 'pending', created_at: new Date().toISOString() },
-            { id: 3, title: 'Team meeting preparation', description: 'Review agenda and prepare slides', due_date: null, status: 'completed', created_at: new Date().toISOString() },
-          ]);
-        }
-      } catch {
-        setReminders([
-          { id: 1, title: 'Follow up with John Doe', description: 'Check on the proposal status', due_date: new Date(Date.now() + 86400000).toISOString(), status: 'pending', created_at: new Date().toISOString() },
-          { id: 2, title: 'Prepare monthly report', description: 'Compile analytics and performance metrics', due_date: new Date(Date.now() - 86400000).toISOString(), status: 'pending', created_at: new Date().toISOString() },
-        ]);
-      }
+        if (data.success) setReminders(data.data || []);
+      } catch { /* ignore */ }
     };
     fetchReminders();
   }, []);
@@ -68,10 +60,6 @@ export default function Reminders() {
     setEditingReminder(reminder);
     setIsModalOpen(true);
   };
-
-  const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-  const token = localStorage.getItem('crm_token');
-  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 
   const handleSaveReminder = async (formData) => {
     setIsLoading(true);
@@ -109,11 +97,11 @@ export default function Reminders() {
   };
 
   const handleDeleteReminder = async (id) => {
-    if (!confirm('Are you sure you want to delete this reminder?')) return;
     try {
       await fetch(`${BACKEND}/api/reminders/${id}`, { method: 'DELETE', headers });
     } catch { /* ignore */ }
     setReminders(prev => prev.filter(r => r.id !== id));
+    toast.success('Reminder deleted.');
   };
 
   const handleCompleteReminder = async (id) => {
@@ -132,10 +120,12 @@ export default function Reminders() {
             {reminders.length} total reminders
           </p>
         </div>
+        {isAdmin && (
         <Button variant="default" onClick={handleCreateReminder}>
           <Plus className="h-4 w-4 mr-2" />
           New Reminder
         </Button>
+        )}
       </div>
 
       <ReminderFilters
@@ -155,15 +145,16 @@ export default function Reminders() {
               <ReminderCard
                 key={reminder.id}
                 reminder={reminder}
-                onEdit={handleEditReminder}
-                onDelete={handleDeleteReminder}
-                onComplete={handleCompleteReminder}
+                onEdit={isAdmin ? handleEditReminder : undefined}
+                onDelete={isAdmin ? (id) => setConfirmDeleteId(id) : undefined}
+                onComplete={isAdmin ? handleCompleteReminder : undefined}
               />
             ))}
           </div>
         )}
       </div>
 
+      <ConfirmDialog open={!!confirmDeleteId} title="Delete Reminder" description="This reminder will be permanently deleted." confirmLabel="Delete" onConfirm={() => handleDeleteReminder(confirmDeleteId)} onCancel={() => setConfirmDeleteId(null)} />
       <ReminderModal
         isOpen={isModalOpen}
         onClose={() => {

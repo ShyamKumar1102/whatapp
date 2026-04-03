@@ -35,7 +35,7 @@ const initSocket = (set, get) => {
   socket.on('disconnect', () => set({ socketConnected: false }));
 
   socket.on('new_message', (message) => {
-    const { chats, messages, selectedChatId } = get();
+    const { chats, messages, selectedChatId, addNotification } = get();
     set({ messages: [...messages, message] });
     set({
       chats: chats.map(c =>
@@ -44,17 +44,65 @@ const initSocket = (set, get) => {
           : c
       ),
     });
+    if (message.sender === 'contact' && message.chatId !== selectedChatId) {
+      const chat = chats.find(c => c.id === message.chatId);
+      const name = chat?.contact?.name || message.contact?.name || 'Someone';
+      addNotification({ text: `New message from ${name}`, chatId: message.chatId });
+      import('sonner').then(({ toast }) => {
+        toast(`💬 ${name}`, {
+          description: message.content?.slice(0, 60) || 'New message',
+          duration: 6000,
+          action: {
+            label: 'Open',
+            onClick: () => window.dispatchEvent(new CustomEvent('navigate-to-chat', { detail: { chatId: message.chatId } })),
+          },
+        });
+      });
+    }
   });
 
   socket.on('conversation_created', (conv) => {
-    const { chats } = get();
+    const { chats, addNotification } = get();
     if (!chats.find(c => c.id === conv.id)) {
       set({ chats: [{ id: conv.id, contact: conv.contact, lastMessage: '', lastMessageTime: 'Just now', unreadCount: 1, assignedAgent: null }, ...chats] });
+      addNotification({ text: `New conversation from ${conv.contact?.name || 'Unknown'}`, chatId: conv.id });
     }
   });
 
   socket.on('message_status', ({ messageId, status }) => {
     set(state => ({ messages: state.messages.map(m => m.id === messageId ? { ...m, status } : m) }));
+  });
+
+  socket.on('conversation_label', ({ id, label }) => {
+    set(state => ({ chats: state.chats.map(c => c.id === id ? { ...c, label } : c) }));
+  });
+
+  socket.on('conversation_assigned', ({ id, agent_id }) => {
+    const { user, addNotification } = get();
+    set(state => ({ chats: state.chats.map(c => c.id === id ? { ...c, assignedAgent: agent_id } : c) }));
+    // Notify if this agent is the one being assigned
+    if (user && (user.id === agent_id || user.name === agent_id)) {
+      addNotification({ text: 'A chat was assigned to you', chatId: id });
+      import('sonner').then(({ toast }) => {
+        toast.info('💬 New chat assigned to you!', {
+          duration: 8000,
+          action: {
+            label: 'Open',
+            onClick: () => window.dispatchEvent(new CustomEvent('navigate-to-chat', { detail: { chatId: id } })),
+          },
+        });
+      });
+      // Sound
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator(); const gain = ctx.createGain();
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.type = 'sine'; osc.frequency.setValueAtTime(660, ctx.currentTime);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
+        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.4);
+      } catch { /* ignore */ }
+    }
   });
 
   socket.on('contact_typing', ({ chatId }) => {
@@ -81,6 +129,14 @@ export const useStore = create((set, get) => ({
   user: JSON.parse(localStorage.getItem('crm_user') || 'null'),
   token: localStorage.getItem('crm_token') || null,
   isAuthenticated: !!localStorage.getItem('crm_token'),
+
+  // notifications state
+  notifications: [],
+  addNotification: (notif) => set(state => ({
+    notifications: [{ id: Date.now(), read: false, time: 'Just now', ...notif }, ...state.notifications].slice(0, 20),
+  })),
+  markAllRead: () => set(state => ({ notifications: state.notifications.map(n => ({ ...n, read: true })) })),
+  markRead: (id) => set(state => ({ notifications: state.notifications.map(n => n.id === id ? { ...n, read: true } : n) })),
 
   // ── Auth ───────────────────────────────────────────────────
   login: async (email, password) => {
@@ -113,6 +169,17 @@ export const useStore = create((set, get) => ({
       get().loadChats(),
       get().loadContacts(),
     ]);
+    // Check for overdue reminders and add notifications
+    try {
+      const token = localStorage.getItem('crm_token');
+      const res = await fetch(`${BACKEND}/api/reminders`, { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) {
+        const now = new Date();
+        const overdue = data.data.filter(r => r.status === 'pending' && r.due_date && new Date(r.due_date) < now);
+        overdue.forEach(r => get().addNotification({ text: `⚠️ Overdue reminder: ${r.title}`, chatId: null }));
+      }
+    } catch { /* ignore */ }
   },
 
   loadChats: async () => {
@@ -135,6 +202,7 @@ export const useStore = create((set, get) => ({
           unreadCount: conv.unreadCount || 0,
           assignedAgent: conv.assigned_agent || null,
           status: conv.status || 'open',
+          label: conv.label || null,
           isTyping: false,
         }));
         set({ chats });
@@ -157,6 +225,8 @@ export const useStore = create((set, get) => ({
     if (localStorage.getItem('crm_token')) {
       initSocket(set, get);
       await get().loadAllData();
+      // Add a welcome notification so bell is not empty
+      get().addNotification({ text: 'Welcome back! CRM is ready.', chatId: null });
     }
   },
 

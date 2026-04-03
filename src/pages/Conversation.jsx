@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import ChatWindow from '@/components/conversation/ChatWindow';
 import CustomerSidebar from '@/components/conversation/CustomerSidebar';
+import { toast } from 'sonner';
 
 export default function Conversation() {
   const { id } = useParams();
@@ -157,13 +158,13 @@ Website: www.wacrm.com
       setMessages(prev => [...prev, systemMessage]);
       
       // Show success feedback
-      alert('✅ Conversation successfully pushed to admin queue!');
+      toast.success('Conversation pushed to admin queue!');
       
       // Mock API call - replace with actual API
       // await api.post(`/conversations/${id}/push-admin`);
     } catch (error) {
       console.error('Error pushing to admin:', error);
-      alert('❌ Failed to push to admin. Please try again.');
+      toast.error('Failed to push to admin. Please try again.');
     }
   };
 

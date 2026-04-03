@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL ? `${import.meta.env.VITE_BACKEND_URL}/api` : 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -26,10 +26,10 @@ api.interceptors.response.use(
 );
 
 export const chatApi = {
-  getChats: () => api.get('/chats'),
+  getChats: () => api.get('/conversations'),
   getMessages: (chatId) => api.get(`/messages/${chatId}`),
-  sendMessage: (chatId, content) => api.post('/messages', { chatId, content }),
-  assignAgent: (chatId, agentId) => api.patch(`/chats/${chatId}/assign`, { agentId }),
+  sendMessage: (chatId, content) => api.post('/messages/send', { chatId, content }),
+  assignAgent: (chatId, agentId) => api.patch(`/conversations/${chatId}/agent`, { agent: agentId }),
 };
 
 export const contactApi = {
@@ -41,13 +41,11 @@ export const contactApi = {
 };
 
 export const pipelineApi = {
-  getDeals: (params) => api.get('/pipeline', { params }),
-  getDeal: (id) => api.get(`/pipeline/${id}`),
-  createDeal: (data) => api.post('/pipeline', data),
-  updateDeal: (id, data) => api.put(`/pipeline/${id}`, data),
-  deleteDeal: (id) => api.delete(`/pipeline/${id}`),
-  getStats: () => api.get('/pipeline/stats'),
-  getActivities: (params) => api.get('/pipeline/activities', { params }),
+  getPipeline: (params) => api.get('/pipeline', { params }),
+  getStages: () => api.get('/pipeline/stages'),
+  createStage: (data) => api.post('/pipeline/stages', data),
+  moveContact: (id, stage_id) => api.patch(`/pipeline/contacts/${id}/stage`, { stage_id }),
+  updatePipelineStatus: (id, pipeline_status) => api.patch(`/pipeline/contacts/${id}/pipeline-status`, { pipeline_status }),
 };
 
 export const dashboardApi = {
@@ -57,7 +55,9 @@ export const dashboardApi = {
 export const campaignApi = {
   getCampaigns: () => api.get('/campaigns'),
   createCampaign: (data) => api.post('/campaigns', data),
-  scheduleCampaign: (id, date) => api.patch(`/campaigns/${id}/schedule`, { date }),
+  updateCampaign: (id, data) => api.put(`/campaigns/${id}`, data),
+  deleteCampaign: (id) => api.delete(`/campaigns/${id}`),
+  sendCampaign: (id) => api.patch(`/campaigns/${id}/send`),
 };
 
 export const templateApi = {

@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 export default function VerificationPage() {
   const [status, setStatus] = useState('pending');
@@ -20,17 +21,17 @@ export default function VerificationPage() {
 
   const handleFileUpload = (field, file) => {
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { alert('File must be under 5MB'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('File must be under 5MB'); return; }
     setDocs(prev => ({ ...prev, [field]: file }));
   };
 
   const handleSubmit = () => {
     if (!form.businessName || !form.fbManagerId || !form.wabaId) {
-      alert('Please fill in Business Name, Facebook Business Manager ID, and WhatsApp Business Account ID.');
+      toast.error('Please fill in Business Name, Facebook Business Manager ID, and WhatsApp Business Account ID.');
       return;
     }
     setStatus('pending');
-    alert('✅ Verification request submitted!\n\nMeta will review your business details within 2-3 business days.\nYou will receive an email notification once approved.');
+    toast.success('Verification request submitted! Meta will review within 2-3 business days.');
   };
 
   const s = statusConfig[status];

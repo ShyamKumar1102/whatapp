@@ -1,11 +1,12 @@
-import { db, generateId } from '../config/database.js';
+import { TABLES, dbScan, dbPut, generateId } from '../config/database.js';
 import multer from 'multer';
 
 export const upload = multer({ storage: multer.memoryStorage() });
 
-export const exportContacts = (req, res) => {
+export const exportContacts = async (req, res) => {
+  const contacts = await dbScan(TABLES.CONTACTS);
   const headers = 'id,name,phone,tags,is_online\n';
-  const rows = db.contacts.map(c =>
+  const rows = contacts.map(c =>
     `${c.id},"${c.name}","${c.phone}","${(c.tags || []).join(';')}",${c.is_online}`
   ).join('\n');
   res.setHeader('Content-Type', 'text/csv');
@@ -13,12 +14,11 @@ export const exportContacts = (req, res) => {
   res.send(headers + rows);
 };
 
-export const importContacts = (req, res) => {
+export const importContacts = async (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
   try {
     const csv = req.file.buffer.toString('utf8');
     const lines = csv.split('\n').filter(Boolean);
-    const headers = lines[0].split(',');
     const imported = [];
     for (let i = 1; i < lines.length; i++) {
       const values = lines[i].split(',');
@@ -28,11 +28,11 @@ export const importContacts = (req, res) => {
         phone: values[2]?.replace(/"/g, '') || '',
         tags: values[3]?.replace(/"/g, '').split(';').filter(Boolean) || [],
         is_online: false,
-        created_at: new Date(),
-        updated_at: new Date()
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       };
       if (contact.name && contact.phone) {
-        db.contacts.push(contact);
+        await dbPut(TABLES.CONTACTS, contact);
         imported.push(contact);
       }
     }

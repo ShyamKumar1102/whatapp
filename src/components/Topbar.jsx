@@ -6,16 +6,12 @@ import { useStore } from '@/store/useStore.js';
 
 export default function Topbar() {
   const navigate = useNavigate();
-  const { chats, contacts, setSelectedChat, user, logout, toggleSidebar } = useStore();
+  const { chats, contacts, setSelectedChat, user, logout, toggleSidebar, notifications, markRead, markAllRead } = useStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showResults, setShowResults] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
-  const [notifs, setNotifs] = useState([
-    { id: 1, text: 'New message from Rahul Sharma', time: '2 min ago', read: false },
-    { id: 2, text: 'Campaign "Diwali Offer" ready to send', time: '10 min ago', read: false },
-    { id: 3, text: 'Reminder: Follow up with Amit', time: '1 hour ago', read: true },
-  ]);
-  const unread = notifs.filter(n => !n.read).length;
+
+  const unread = notifications.filter(n => !n.read).length;
 
   const handleSearch = (e) => {
     const query = e.target.value;
@@ -36,6 +32,12 @@ export default function Topbar() {
     else navigate('/contacts');
     setSearchQuery('');
     setShowResults(false);
+  };
+
+  const handleNotifClick = (n) => {
+    markRead(n.id);
+    if (n.chatId) { setSelectedChat(n.chatId); navigate('/chats'); }
+    setShowNotif(false);
   };
 
   return (
@@ -88,20 +90,35 @@ export default function Topbar() {
             {unread > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />}
           </button>
           {showNotif && (
-            <div className="absolute right-0 top-11 w-72 bg-card border border-border rounded-xl shadow-lg z-50">
+            <div className="absolute right-0 top-11 w-80 bg-card border border-border rounded-xl shadow-lg z-50">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                <span className="text-sm font-semibold text-foreground">Notifications {unread > 0 && <span className="ml-1 text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">{unread}</span>}</span>
-                <button onClick={() => setShowNotif(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
-              </div>
-              {notifs.map(n => (
-                <div key={n.id} onClick={() => setNotifs(prev => prev.map(x => x.id === n.id ? {...x, read: true} : x))} className={`px-4 py-3 border-b border-border/50 last:border-0 cursor-pointer hover:bg-surface-hover ${!n.read ? 'bg-accent/20' : ''}`}>
-                  <p className="text-xs text-foreground">{n.text}</p>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{n.time}</p>
+                <span className="text-sm font-semibold text-foreground">
+                  Notifications {unread > 0 && <span className="ml-1 text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">{unread}</span>}
+                </span>
+                <div className="flex items-center gap-2">
+                  {notifications.length > 0 && <button onClick={markAllRead} className="text-[10px] text-primary hover:underline">Mark all read</button>}
+                  <button onClick={() => setShowNotif(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
                 </div>
-              ))}
-              {notifs.every(n => n.read) && (
-                <p className="text-xs text-muted-foreground text-center py-4">All caught up!</p>
-              )}
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-8">All caught up!</p>
+                ) : notifications.map(n => (
+                  <div
+                    key={n.id}
+                    onClick={() => handleNotifClick(n)}
+                    className={`px-4 py-3 border-b border-border/50 last:border-0 cursor-pointer hover:bg-surface-hover transition-colors ${!n.read ? 'bg-accent/20' : ''}`}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${!n.read ? 'bg-primary' : 'bg-transparent'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-foreground">{n.text}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{n.time}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -118,11 +135,7 @@ export default function Topbar() {
           </div>
         </div>
 
-        <button
-          onClick={() => { logout(); navigate('/login'); }}
-          title="Logout"
-          className="p-2 rounded-lg hover:bg-surface-hover transition-colors"
-        >
+        <button onClick={() => { logout(); navigate('/login'); }} title="Logout" className="p-2 rounded-lg hover:bg-surface-hover transition-colors">
           <LogOut className="w-4 h-4 text-muted-foreground" />
         </button>
       </div>

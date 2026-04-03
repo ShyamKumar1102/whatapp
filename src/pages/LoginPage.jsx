@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { MessageCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Input }  from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -10,8 +10,10 @@ export default function LoginPage() {
   const navigate  = useNavigate();
   const { login } = useStore();
 
-  const [form,    setForm]    = useState({ email: 'admin@crm.com', password: 'Admin@1234' });
+  const location = useLocation();
+  const [form,    setForm]    = useState({ email: 'admin@crm.com', password: 'admin123' });
   const [error,   setError]   = useState('');
+  const registered = location.state?.registered;
   const [loading, setLoading] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
 
@@ -82,6 +84,9 @@ export default function LoginPage() {
             </div>
           </div>
 
+          {registered && (
+            <p className="text-xs text-primary bg-primary/10 px-3 py-2 rounded-lg">✅ Account created! Sign in below.</p>
+          )}
           {error && (
             <p className="text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>
           )}
@@ -92,7 +97,11 @@ export default function LoginPage() {
           </Button>
 
           <p className="text-xs text-center text-muted-foreground pt-1">
-            Default: admin@crm.com / Admin@1234
+            Default: admin@crm.com / admin123
+          </p>
+          <p className="text-xs text-center text-muted-foreground">
+            No account?{' '}
+            <Link to="/register" className="text-primary hover:underline">Register</Link>
           </p>
         </form>
       </div>

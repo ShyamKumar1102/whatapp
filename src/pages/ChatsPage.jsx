@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Send, Paperclip, Smile, Phone, Video, MoreVertical, MessageSquare, Building2, Mic, MicOff, Bell, UserCircle, Ban, Trash2, X } from 'lucide-react';
+import { Search, Send, Paperclip, Smile, Phone, Video, MoreVertical, MessageSquare, Building2, Mic, MicOff, UserCircle, Ban, Trash2, X, Zap, ChevronDown } from 'lucide-react';
+import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,43 +8,129 @@ import { useStore } from '@/store/useStore';
 import { useNavigate } from 'react-router-dom';
 import ChatCard from '@/components/ChatCard';
 import MessageBubble from '@/components/MessageBubble';
-import StatusSelector from '@/components/conversation/StatusSelector';
 import InternalNotes from '@/components/conversation/InternalNotes';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { cn } from '@/lib/utils';
 
+const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+const getAuthHeaders = () => {
+  const token = localStorage.getItem('crm_token');
+  return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+};
+
 export default function ChatsPage() {
-  const { chats, messages, selectedChatId, setSelectedChat, addMessage } = useStore();
+  const { chats, messages, selectedChatId, setSelectedChat, addMessage, loadChats, user } = useStore();
   const navigate = useNavigate();
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [currentStatus, setCurrentStatus] = useState('open');
+  const [activeFilter, setActiveFilter] = useState('all');
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, text: 'New message from Rahul Sharma', time: '2 min ago', read: false },
-    { id: 2, text: 'Priya Patel is typing...', time: '5 min ago', read: false },
-    { id: 3, text: 'Campaign "Diwali Offer" sent', time: '1 hour ago', read: true },
-  ]);
-  const [showNotifications, setShowNotifications] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
-  const [notes, setNotes] = useState([
-    {
-      id: 1,
-      conversation_id: 1,
-      agent_id: 1,
-      note: 'Customer seems frustrated about delayed delivery. Need to check shipping status.',
-      created_at: new Date('2024-04-01T17:47:00').toISOString()
-    }
-  ]);
+  const [notes, setNotes] = useState([]);
+  const [msgSearch, setMsgSearch] = useState('');
+  const [showMsgSearch, setShowMsgSearch] = useState(false);
+  const [agents, setAgents] = useState([]);
+  const [showAssign, setShowAssign] = useState(false);
+  const [showQuickReplies, setShowQuickReplies] = useState(false);
+  const [currentLabel, setCurrentLabel] = useState(null);
+  const [showReminderForm, setShowReminderForm] = useState(false);
+  const [confirmBlock, setConfirmBlock] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [reminderTitle, setReminderTitle] = useState('');
+  const [reminderDate, setReminderDate] = useState('');
+  const [contactReminders, setContactReminders] = useState([]);
+
+  const QUICK_REPLIES = [
+    { id: 1, title: 'Greeting',       text: 'Hello! Thank you for reaching out. How can I help you today? 😊' },
+    { id: 2, title: 'Follow Up',      text: 'Just following up on our previous conversation. Do you have any questions?' },
+    { id: 3, title: 'Pricing',        text: 'I\'d be happy to share our pricing details. Could you tell me more about your requirements?' },
+    { id: 4, title: 'Thank You',      text: 'Thank you for your time! Feel free to reach out if you need anything else. 🙏' },
+    { id: 5, title: 'Out of Office',  text: 'I\'m currently unavailable. I\'ll get back to you within 24 hours.' },
+    { id: 6, title: 'Meeting Invite', text: 'Would you be available for a quick call? Please share your preferred time slot.' },
+  ];
+
+  const CHAT_LABELS = [
+    { key: null,               label: 'None' },
+    { key: 'meeting_done',     label: 'Meeting Done' },
+    { key: 'meeting_fixed',    label: 'Meeting Fixed' },
+    { key: 'prospect',         label: 'Prospect' },
+    { key: 'closed_won',       label: 'Closed Won' },
+    { key: 'closed_lost',      label: 'Closed Lost' },
+    { key: 'agreed_to_buy',    label: 'Agreed to Buy' },
+    { key: 'junk_load',        label: 'Junk Load' },
+    { key: 'callback_followup',label: 'Callback/Follow-up' },
+    { key: 'not_contacted',    label: 'Not Contacted' },
+  ];
 
   const selectedChat = chats.find(c => c.id === selectedChatId);
-  const chatMessages = messages.filter(m => m.chatId === selectedChatId);
-  const filteredChats = chats.filter(c =>
-    c.contact.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const chatMessages = messages
+    .filter(m => m.chatId === selectedChatId || m.conversation_id === selectedChatId)
+    .filter(m => !msgSearch || m.content?.toLowerCase().includes(msgSearch.toLowerCase()));
+
+  const LABEL_FILTERS = [
+    { key: 'all',              label: 'All Chats' },
+    { key: 'my',               label: 'My Chats' },
+    { key: 'meeting_done',     label: 'Meeting Done' },
+    { key: 'meeting_fixed',    label: 'Meeting Fixed' },
+    { key: 'prospect',         label: 'Prospect' },
+    { key: 'closed_won',       label: 'Closed Won' },
+    { key: 'closed_lost',      label: 'Closed Lost' },
+    { key: 'agreed_to_buy',    label: 'Agreed to Buy' },
+    { key: 'junk_load',        label: 'Junk Load' },
+    { key: 'callback_followup',label: 'Callback/Follow-up' },
+    { key: 'not_contacted',    label: 'Not Contacted' },
+  ];
+
+  const filteredChats = chats.filter(c => {
+    const matchesSearch = c.contact.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesFilter =
+      activeFilter === 'all' ? true :
+      activeFilter === 'my'  ? c.assignedAgent === user?.id || c.assignedAgent === user?.name :
+      c.label === activeFilter;
+    return matchesSearch && matchesFilter;
+  });
+
+  // Sync label from selected chat
+  useEffect(() => {
+    setCurrentLabel(selectedChat?.label || null);
+    setShowMsgSearch(false);
+    setMsgSearch('');
+    setShowAssign(false);
+    setShowReminderForm(false);
+    setContactReminders([]);
+    setReminderTitle('');
+    setReminderDate('');
+  }, [selectedChatId, selectedChat?.label]);
+
+  // Load agents once
+  useEffect(() => {
+    fetch(`${BACKEND}/api/agents`, { headers: getAuthHeaders() })
+      .then(r => r.json()).then(d => { if (d.success) setAgents(d.data); }).catch(() => {});
+  }, []);
+
+  // Load notes when chat changes
+  useEffect(() => {
+    if (!selectedChatId) return;
+    const token = localStorage.getItem('crm_token');
+    const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    fetch(`${BACKEND}/api/conversations/${selectedChatId}/notes`, { headers })
+      .then(r => r.json())
+      .then(d => { if (d.success) setNotes(d.data); })
+      .catch(() => {});
+  }, [selectedChatId]);
+
+  // Load contact reminders when chat changes
+  useEffect(() => {
+    if (!selectedChatId || !selectedChat?.contact?.id) return;
+    fetch(`${BACKEND}/api/reminders`, { headers: getAuthHeaders() })
+      .then(r => r.json())
+      .then(d => { if (d.success) setContactReminders(d.data.filter(r => r.contact_id === selectedChat.contact.id && r.status !== 'completed')); })
+      .catch(() => {});
+  }, [selectedChatId]);
 
   // Auto scroll to bottom when new messages arrive
   useEffect(() => {
@@ -66,17 +153,6 @@ export default function ChatsPage() {
       type: 'text',
     });
     setMessageInput('');
-    
-    // Simulate message status updates
-    setTimeout(() => {
-      // Update to delivered
-      console.log('Message delivered');
-    }, 1000);
-    
-    setTimeout(() => {
-      // Update to read
-      console.log('Message read');
-    }, 3000);
   };
 
   const handleKeyPress = (e) => {
@@ -105,8 +181,6 @@ export default function ChatsPage() {
   const handleVoiceRecord = () => {
     setIsRecording(!isRecording);
     if (!isRecording) {
-      // Start recording
-      console.log('Started voice recording');
       setTimeout(() => {
         setIsRecording(false);
         if (selectedChatId) {
@@ -149,17 +223,50 @@ export default function ChatsPage() {
     setIsInputFocused(false);
   };
 
-  const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-  const token = localStorage.getItem('crm_token');
-  const authHeaders = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
-
-  const handleStatusChange = async (newStatus) => {
-    setCurrentStatus(newStatus);
+  const handleAssignAgent = async (agentId) => {
+    setShowAssign(false);
     try {
-      await fetch(`${BACKEND}/api/conversations/${selectedChatId}/status`, {
-        method: 'PATCH', headers: authHeaders, body: JSON.stringify({ status: newStatus }),
+      await fetch(`${BACKEND}/api/conversations/${selectedChatId}/assign`, {
+        method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify({ agent_id: agentId }),
       });
-    } catch { /* ignore — UI already updated */ }
+      await loadChats();
+    } catch { /* ignore */ }
+  };
+
+  const handleLabelChange = async (label) => {
+    setCurrentLabel(label);
+    try {
+      await fetch(`${BACKEND}/api/conversations/${selectedChatId}/label`, {
+        method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify({ label }),
+      });
+      await loadChats();
+    } catch { /* ignore */ }
+  };
+
+  const handleAddReminder = async () => {
+    if (!reminderTitle.trim()) return;
+    try {
+      await fetch(`${BACKEND}/api/reminders`, {
+        method: 'POST', headers: getAuthHeaders(),
+        body: JSON.stringify({ title: reminderTitle, due_date: reminderDate || null, contact_id: selectedChat?.contact?.id || null }),
+      });
+    } catch { /* ignore */ }
+    setShowReminderForm(false);
+    setReminderTitle('');
+    setReminderDate('');
+    toast.success('Reminder set!');
+    // Reload contact reminders
+    if (selectedChat?.contact?.id) {
+      fetch(`${BACKEND}/api/reminders`, { headers: getAuthHeaders() })
+        .then(r => r.json())
+        .then(d => { if (d.success) setContactReminders(d.data.filter(r => r.contact_id === selectedChat.contact.id && r.status !== 'completed')); })
+        .catch(() => {});
+    }
+  };
+
+  const handleQuickReply = (text) => {
+    setMessageInput(text);
+    setShowQuickReplies(false);
   };
 
   const handleAddNote = async (note) => {
@@ -167,19 +274,18 @@ export default function ChatsPage() {
     setNotes(prev => [newNote, ...prev]);
     try {
       await fetch(`${BACKEND}/api/conversations/${selectedChatId}/notes`, {
-        method: 'POST', headers: authHeaders, body: JSON.stringify({ note }),
+        method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ note }),
       });
     } catch { /* ignore */ }
   };
 
   const handlePushToAdmin = async () => {
-    setCurrentStatus('pending');
     try {
       await fetch(`${BACKEND}/api/conversations/${selectedChatId}/push-admin`, {
-        method: 'POST', headers: authHeaders,
+        method: 'POST', headers: getAuthHeaders(),
       });
     } catch { /* ignore */ }
-    alert('✅ Chat successfully pushed to admin queue!');
+    toast.success('Chat pushed to admin queue!');
   };
 
   const handleCall = () => {
@@ -194,42 +300,47 @@ export default function ChatsPage() {
 
   const handleBlockContact = () => {
     setShowMoreMenu(false);
-    if (confirm(`Block ${selectedChat?.contact.name}? They won't be able to send messages.`)) {
-      alert(`✅ ${selectedChat?.contact.name} has been blocked.`);
-    }
+    setConfirmBlock(true);
   };
 
   const handleClearChat = () => {
     setShowMoreMenu(false);
-    if (confirm('Clear all messages in this chat?')) {
-      // Clear messages for this chat from store
-      alert('✅ Chat cleared.');
-    }
+    setConfirmClear(true);
   };
 
   const handleMarkUnread = () => {
     setShowMoreMenu(false);
-    alert('✅ Marked as unread.');
   };
 
-  const unreadNotifCount = notifications.filter(n => !n.read).length;
-
   const getInitials = (name) => {
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   return (
     <div className="flex flex-col h-screen">
+      <ConfirmDialog open={confirmBlock} title="Block Contact" description={`Block ${selectedChat?.contact.name}? They won't be able to send messages.`} confirmLabel="Block" onConfirm={() => { toast.success(`${selectedChat?.contact.name} blocked.`); }} onCancel={() => setConfirmBlock(false)} />
+      <ConfirmDialog open={confirmClear} title="Clear Chat" description="All messages in this chat will be cleared." confirmLabel="Clear" onConfirm={() => { toast.success('Chat cleared.'); }} onCancel={() => setConfirmClear(false)} />
       <div className="p-6 pb-0 shrink-0">
         <h1 className="text-xl font-semibold text-foreground">Chats</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Manage your WhatsApp conversations
         </p>
+        <div className="flex gap-2 mt-3 overflow-x-auto pb-1 scrollbar-thin">
+          {LABEL_FILTERS.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setActiveFilter(f.key)}
+              className={cn(
+                'shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border',
+                activeFilter === f.key
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card text-muted-foreground border-border hover:bg-muted hover:text-foreground'
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex-1 p-6 pt-6 min-h-0">
@@ -293,38 +404,13 @@ export default function ChatsPage() {
                   <button onClick={handleVideoCall} className="p-2 rounded-lg hover:bg-surface-hover transition-colors" title="Open WhatsApp">
                     <Video className="w-4 h-4 text-muted-foreground" />
                   </button>
-
-                  {/* Notifications bell */}
-                  <div className="relative">
-                    <button
-                      onClick={() => { setShowNotifications(!showNotifications); setShowMoreMenu(false); }}
-                      className="p-2 rounded-lg hover:bg-surface-hover transition-colors relative"
-                    >
-                      <Bell className="w-4 h-4 text-muted-foreground" />
-                      {unreadNotifCount > 0 && (
-                        <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary" />
-                      )}
-                    </button>
-                    {showNotifications && (
-                      <div className="absolute right-0 top-10 w-72 bg-card border border-border rounded-xl shadow-lg z-50">
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                          <span className="text-sm font-semibold text-foreground">Notifications</span>
-                          <button onClick={() => setShowNotifications(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
-                        </div>
-                        {notifications.map(n => (
-                          <div key={n.id} onClick={() => setNotifications(prev => prev.map(x => x.id === n.id ? {...x, read: true} : x))} className={cn('px-4 py-3 border-b border-border/50 last:border-0 cursor-pointer hover:bg-surface-hover', !n.read && 'bg-accent/30')}>
-                            <p className="text-xs text-foreground">{n.text}</p>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">{n.time}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
+                  <button onClick={() => { setShowMsgSearch(!showMsgSearch); setMsgSearch(''); }} className={cn('p-2 rounded-lg transition-colors', showMsgSearch ? 'bg-accent' : 'hover:bg-surface-hover')} title="Search messages">
+                    <Search className="w-4 h-4 text-muted-foreground" />
+                  </button>
                   {/* Three dots menu */}
                   <div className="relative">
                     <button
-                      onClick={() => { setShowMoreMenu(!showMoreMenu); setShowNotifications(false); }}
+                      onClick={() => { setShowMoreMenu(!showMoreMenu); }}
                       className="p-2 rounded-lg hover:bg-surface-hover transition-colors"
                     >
                       <MoreVertical className="w-4 h-4 text-muted-foreground" />
@@ -349,6 +435,17 @@ export default function ChatsPage() {
                 </div>
               </div>
 
+              {/* Message Search Bar */}
+              {showMsgSearch && (
+                <div className="px-4 py-2 border-b border-border bg-muted/30 shrink-0">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <Input autoFocus value={msgSearch} onChange={e => setMsgSearch(e.target.value)} placeholder="Search in conversation..." className="pl-8 h-8 text-xs bg-background" />
+                    {msgSearch && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">{chatMessages.length} results</span>}
+                  </div>
+                </div>
+              )}
+
               {/* Messages */}
               <div className="flex-1 overflow-y-auto bg-background" style={{ contain: 'layout style paint' }}>
                 <div className="p-4 space-y-3">
@@ -368,6 +465,22 @@ export default function ChatsPage() {
 
               {/* Input */}
               <div className="bg-card border-t border-border p-3 shrink-0">
+                {/* Quick Replies */}
+                {showQuickReplies && (
+                  <div className="mb-3 bg-background border border-border rounded-lg overflow-hidden">
+                    <div className="px-3 py-2 border-b border-border flex items-center justify-between">
+                      <span className="text-xs font-semibold text-foreground">Quick Replies</span>
+                      <button onClick={() => setShowQuickReplies(false)}><X className="w-3.5 h-3.5 text-muted-foreground" /></button>
+                    </div>
+                    {QUICK_REPLIES.map(qr => (
+                      <button key={qr.id} onClick={() => handleQuickReply(qr.text)} className="w-full text-left px-3 py-2.5 hover:bg-muted/50 border-b border-border/50 last:border-0 transition-colors">
+                        <p className="text-xs font-medium text-foreground">{qr.title}</p>
+                        <p className="text-[11px] text-muted-foreground truncate mt-0.5">{qr.text}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 {/* Company Details Button */}
                 {(isInputFocused || messageInput.trim()) && (
                   <Button 
@@ -398,14 +511,11 @@ export default function ChatsPage() {
                 )}
                 
                 <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                    className={cn(
-                      "p-2 rounded-lg transition-colors",
-                      showEmojiPicker ? "bg-accent" : "hover:bg-surface-hover"
-                    )}
-                  >
+                  <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className={cn('p-2 rounded-lg transition-colors', showEmojiPicker ? 'bg-accent' : 'hover:bg-surface-hover')}>
                     <Smile className="w-5 h-5 text-muted-foreground" />
+                  </button>
+                  <button onClick={() => { setShowQuickReplies(!showQuickReplies); setShowEmojiPicker(false); }} className={cn('p-2 rounded-lg transition-colors', showQuickReplies ? 'bg-accent' : 'hover:bg-surface-hover')} title="Quick replies">
+                    <Zap className="w-5 h-5 text-muted-foreground" />
                   </button>
                   <button 
                     onClick={() => fileInputRef.current?.click()}
@@ -494,9 +604,6 @@ export default function ChatsPage() {
                       <p className="text-xs text-muted-foreground">
                         {selectedChat.contact.phone}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        john@example.com
-                      </p>
                     </div>
                   </div>
                   
@@ -516,9 +623,7 @@ export default function ChatsPage() {
 
                 {/* Conversation Metadata */}
                 <div className="mx-4 rounded-xl border bg-background p-4 mb-4">
-                  <h3 className="text-sm font-semibold text-foreground mb-3">
-                    Conversation Info
-                  </h3>
+                  <h3 className="text-sm font-semibold text-foreground mb-3">Conversation Info</h3>
                   <div className="grid grid-cols-2 gap-3 text-xs">
                     <div>
                       <span className="text-muted-foreground font-medium">Channel</span>
@@ -526,27 +631,94 @@ export default function ChatsPage() {
                     </div>
                     <div>
                       <span className="text-muted-foreground font-medium">Started</span>
-                      <p className="text-foreground font-semibold">Mar 25, 2024</p>
+                      <p className="text-foreground font-semibold">{selectedChat.created_at ? new Date(selectedChat.created_at).toLocaleDateString() : 'N/A'}</p>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground font-medium">Agent</span>
-                      <p className="text-foreground font-semibold">
-                        {selectedChat.assignedAgent || 'Agent 1'}
-                      </p>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground font-medium">Assigned Agent</span>
+                      <div className="relative mt-1">
+                        <button onClick={() => setShowAssign(!showAssign)} className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg border border-border bg-muted/30 hover:bg-muted transition-colors">
+                          <span className="text-xs font-semibold text-foreground">{selectedChat.assignedAgent || 'Unassigned'}</span>
+                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                        </button>
+                        {showAssign && (
+                          <div className="absolute top-8 left-0 right-0 bg-card border border-border rounded-lg shadow-lg z-50 py-1">
+                            <button onClick={() => handleAssignAgent(null, 'Unassigned')} className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors text-muted-foreground">Unassigned</button>
+                            {agents.map(a => (
+                              <button key={a.id} onClick={() => handleAssignAgent(a.id, a.name)} className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors text-foreground">{a.name} <span className="text-muted-foreground">({a.role})</span></button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground font-medium">Label</span>
+                      <select value={currentLabel || ''} onChange={e => handleLabelChange(e.target.value || null)} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-border bg-muted/30 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+                        {CHAT_LABELS.map(l => <option key={l.key ?? 'none'} value={l.key ?? ''}>{l.label}</option>)}
+                      </select>
                     </div>
                     <div>
                       <span className="text-muted-foreground font-medium">Updated</span>
-                      <p className="text-foreground font-semibold">Apr 1, 2024</p>
+                      <p className="text-foreground font-semibold">{selectedChat.updated_at ? new Date(selectedChat.updated_at).toLocaleDateString() : 'N/A'}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Status Selector */}
-                <StatusSelector
-                  currentStatus={currentStatus}
-                  onStatusChange={handleStatusChange}
-                />
+                {/* Reminders */}
+                <div className="mx-4 mb-4 rounded-xl border bg-background p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-foreground">Reminders</h3>
+                    <button onClick={() => setShowReminderForm(!showReminderForm)} className="text-xs text-primary hover:underline">
+                      {showReminderForm ? 'Cancel' : '+ Add'}
+                    </button>
+                  </div>
 
+                  {/* Existing reminders for this contact */}
+                  {contactReminders.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {contactReminders.map(r => {
+                        const isOverdue = r.due_date && new Date(r.due_date) < new Date();
+                        return (
+                          <div key={r.id} className="flex items-start gap-2 p-2 rounded-lg bg-muted/40 border border-border/50">
+                            <button
+                              onClick={async () => {
+                                try { await fetch(`${BACKEND}/api/reminders/${r.id}/complete`, { method: 'PATCH', headers: getAuthHeaders() }); } catch { /* ignore */ }
+                                setContactReminders(prev => prev.filter(x => x.id !== r.id));
+                                toast.success('Reminder completed!');
+                              }}
+                              className="mt-0.5 w-3.5 h-3.5 rounded-full border-2 border-primary shrink-0 hover:bg-primary transition-colors"
+                              title="Mark complete"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-foreground truncate">{r.title}</p>
+                              {r.due_date && (
+                                <p className={`text-[10px] mt-0.5 ${isOverdue ? 'text-destructive' : 'text-muted-foreground'}`}>
+                                  {isOverdue ? '⚠️ Overdue · ' : '🕐 '}{new Date(r.due_date).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {contactReminders.length === 0 && !showReminderForm && (
+                    <p className="text-xs text-muted-foreground text-center py-2">No reminders for this contact</p>
+                  )}
+
+                  {showReminderForm && (
+                    <div className="space-y-2">
+                      <Input placeholder="Reminder title..." value={reminderTitle} onChange={e => setReminderTitle(e.target.value)} className="h-8 text-xs" />
+                      <Input type="datetime-local" value={reminderDate} onChange={e => setReminderDate(e.target.value)} className="h-8 text-xs" />
+                      <div className="flex gap-2">
+                        <Button size="sm" className="flex-1 h-7 text-xs" onClick={handleAddReminder} disabled={!reminderTitle.trim()}>Save</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowReminderForm(false); setReminderTitle(''); setReminderDate(''); }}>Cancel</Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Internal Notes */}
                 {/* Internal Notes */}
                 <div className="mt-6">
                   <InternalNotes

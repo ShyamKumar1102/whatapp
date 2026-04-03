@@ -1,50 +1,112 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, MessageSquare, MessagesSquare, Megaphone, Clock, RefreshCw } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { TrendingUp, TrendingDown, MessageSquare, MessagesSquare, Megaphone, Clock, RefreshCw, Download } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
 import { cn } from '@/lib/utils';
+import { exportAnalyticsPDF } from '@/lib/exportPDF';
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+const TAG_COLORS = ['hsl(142, 64%, 38%)', 'hsl(217, 91%, 60%)', 'hsl(38, 92%, 50%)', 'hsl(280, 65%, 55%)', 'hsl(0, 72%, 55%)'];
 
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const { chats, setSelectedChat, loadChats } = useStore();
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { chats, setSelectedChat } = useStore();
+  const [stats, setStats]         = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [chartData, setChartData] = useState([]);
+  const [reminders, setReminders] = useState([]);
+  const [pipeline, setPipeline]   = useState([]);
+  const [activity, setActivity]   = useState([]);
+  const [agents, setAgents]       = useState([]);
+  const [contacts, setContacts]   = useState([]);
 
-  useEffect(() => {
-    fetchStats();
-  }, []);
-
-  const fetchStats = async () => {
+  const fetchAll = async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('crm_token');
-      const res = await fetch(`${BACKEND}/api/dashboard/stats`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) setStats(data.data);
-    } catch { /* use fallback */ } finally {
+      const h = { Authorization: `Bearer ${token}` };
+
+      const [statsRes, chartRes, remindersRes, pipelineRes, convsRes, contactsRes, agentsRes] = await Promise.all([
+        fetch(`${BACKEND}/api/dashboard/stats`, { headers: h }),
+        fetch(`${BACKEND}/api/messages/chart`,  { headers: h }),
+        fetch(`${BACKEND}/api/reminders`,        { headers: h }),
+        fetch(`${BACKEND}/api/pipeline`,         { headers: h }),
+        fetch(`${BACKEND}/api/conversations`,    { headers: h }),
+        fetch(`${BACKEND}/api/contacts`,         { headers: h }),
+        fetch(`${BACKEND}/api/agents`,           { headers: h }),
+      ]);
+
+      const [statsData, chartD, remindersData, pipelineData, convsData, contactsData, agentsData] = await Promise.all([
+        statsRes.json(), chartRes.json(), remindersRes.json(), pipelineRes.json(), convsRes.json(), contactsRes.json(), agentsRes.json(),
+      ]);
+
+      if (statsData.success)    setStats(statsData.data);
+      if (chartD.success && chartD.data?.length) setChartData(chartD.data);
+      if (remindersData.success) setReminders(remindersData.data || []);
+      if (pipelineData.success)  setPipeline(pipelineData.data?.stages || []);
+      if (contactsData.success)  setContacts(contactsData.data || []);
+
+      if (convsData.success && convsData.data?.length && agentsData.success) {
+        const agentMap = {};
+        agentsData.data.forEach(a => { agentMap[a.id] = { name: a.name, chats: 0 }; });
+        convsData.data.forEach(conv => {
+          const aid = conv.assigned_agent;
+          if (aid && agentMap[aid]) agentMap[aid].chats++;
+        });
+        setAgents(Object.values(agentMap).filter(a => a.chats > 0).slice(0, 5));
+      }
+
+      // Build recent activity from conversations
+      if (convsData.success && convsData.data?.length) {
+        const sorted = [...convsData.data]
+          .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+          .slice(0, 6)
+          .map(c => ({
+            id: c.id,
+            name: c.contact?.name || 'Unknown',
+            message: c.lastMessage || 'New conversation',
+            time: c.updated_at ? new Date(c.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+            status: c.status,
+            initials: (c.contact?.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase(),
+          }));
+        setActivity(sorted);
+      }
+    } catch { /* keep empty */ } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => { fetchAll(); }, []);
+
+  // Reminders breakdown
+  const now = new Date();
+  const reminderStats = {
+    pending:   reminders.filter(r => r.status === 'pending' && (!r.due_date || new Date(r.due_date) > now)).length,
+    overdue:   reminders.filter(r => r.status === 'pending' && r.due_date && new Date(r.due_date) <= now).length,
+    completed: reminders.filter(r => r.status === 'completed').length,
+  };
+
   const statCards = stats ? [
     { label: 'Total Messages', value: stats.totalMessages?.toLocaleString() || '0', growth: stats.messagesGrowth || 0, icon: MessageSquare },
-    { label: 'Active Chats',   value: stats.activeChats?.toString() || '0',          growth: stats.chatsGrowth || 0,    icon: MessagesSquare },
-    { label: 'Campaigns',      value: stats.campaigns?.toString() || '0',             growth: stats.campaignsGrowth || 0, icon: Megaphone },
-    { label: 'Avg Response',   value: stats.responseTime || '—',                      growth: stats.responseTimeGrowth || 0, icon: Clock },
+    { label: 'Active Chats',   value: stats.activeChats?.toString() || '0',         growth: stats.chatsGrowth || 0,    icon: MessagesSquare },
+    { label: 'Campaigns',      value: stats.campaigns?.toString() || '0',            growth: stats.campaignsGrowth || 0, icon: Megaphone },
+    { label: 'Avg Response',   value: stats.responseTime || '—',                     growth: stats.responseTimeGrowth || 0, icon: Clock },
   ] : [];
 
-  // Build chart data from real chats
-  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  const chartData = days.map(name => ({ name, sent: Math.floor(Math.random() * 200 + 100), received: Math.floor(Math.random() * 200 + 80) }));
+  const statusColor = { open: 'bg-green-500', pending: 'bg-yellow-500', closed: 'bg-gray-400' };
+  const maxChats = Math.max(...agents.map(a => a.chats), 1);
+  const tagData = (() => {
+    const map = {};
+    contacts.forEach(c => (c.tags || []).forEach(t => { map[t] = (map[t] || 0) + 1; }));
+    return Object.entries(map).map(([name, value]) => ({ name, value })).slice(0, 5);
+  })();
 
-  const handleChatClick = (chat) => {
-    setSelectedChat(chat.id);
-    navigate('/chats');
+  const handleExportCSV = () => {
+    const rows = [['Day','Sent','Received'], ...chartData.map(d => [d.name, d.sent, d.received])];
+    const blob = new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' });
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `dashboard_${new Date().toISOString().split('T')[0]}.csv` });
+    document.body.appendChild(a); a.click(); a.remove();
   };
 
   return (
@@ -54,24 +116,28 @@ export default function DashboardPage() {
           <h1 className="text-xl font-semibold text-foreground">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1">Overview of your WhatsApp Business account</p>
         </div>
-        <button onClick={fetchStats} className="p-2 rounded-lg hover:bg-surface-hover transition-colors">
-          <RefreshCw className={cn('w-4 h-4 text-muted-foreground', loading && 'animate-spin')} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={handleExportCSV} className="p-2 rounded-lg hover:bg-surface-hover transition-colors" title="Export CSV">
+            <Download className={cn('w-4 h-4 text-muted-foreground')} />
+          </button>
+          <button onClick={() => exportAnalyticsPDF(stats, chartData, agents, contacts)} className="p-2 rounded-lg hover:bg-surface-hover transition-colors" title="Export PDF">
+            <span className="text-[10px] font-bold text-muted-foreground">PDF</span>
+          </button>
+          <button onClick={fetchAll} className="p-2 rounded-lg hover:bg-surface-hover transition-colors">
+            <RefreshCw className={cn('w-4 h-4 text-muted-foreground', loading && 'animate-spin')} />
+          </button>
+        </div>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {loading ? (
-          Array(4).fill(0).map((_, i) => (
-            <div key={i} className="bg-card rounded-xl border border-border p-5 animate-pulse">
-              <div className="h-4 bg-muted rounded w-3/4 mb-3" />
-              <div className="h-8 bg-muted rounded w-1/2" />
-            </div>
-          ))
-        ) : statCards.map((stat) => {
-          const isPositive = stat.growth > 0;
-          const isNegativeGood = stat.label === 'Avg Response' && stat.growth < 0;
-          const good = isPositive || isNegativeGood;
+        {loading ? Array(4).fill(0).map((_, i) => (
+          <div key={i} className="bg-card rounded-xl border border-border p-5 animate-pulse">
+            <div className="h-4 bg-muted rounded w-3/4 mb-3" />
+            <div className="h-8 bg-muted rounded w-1/2" />
+          </div>
+        )) : statCards.map(stat => {
+          const good = stat.growth > 0 || (stat.label === 'Avg Response' && stat.growth < 0);
           return (
             <div key={stat.label} className="bg-card rounded-xl border border-border p-4 sm:p-5">
               <div className="flex items-center justify-between">
@@ -83,9 +149,7 @@ export default function DashboardPage() {
               <p className="text-xl sm:text-2xl font-bold text-foreground mt-2">{stat.value}</p>
               <div className="flex items-center gap-1 mt-1">
                 {good ? <TrendingUp className="w-3 h-3 text-primary" /> : <TrendingDown className="w-3 h-3 text-destructive" />}
-                <span className={cn('text-xs font-medium', good ? 'text-primary' : 'text-destructive')}>
-                  {Math.abs(stat.growth)}%
-                </span>
+                <span className={cn('text-xs font-medium', good ? 'text-primary' : 'text-destructive')}>{Math.abs(stat.growth)}%</span>
                 <span className="text-xs text-muted-foreground hidden sm:inline">vs last week</span>
               </div>
             </div>
@@ -93,55 +157,163 @@ export default function DashboardPage() {
         })}
       </div>
 
+      {/* Row 2 — Chart + Reminders */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        {/* Chart */}
+        {/* Messages chart */}
         <div className="lg:col-span-2 bg-card rounded-xl border border-border p-4 sm:p-5">
           <h2 className="text-sm font-semibold text-foreground mb-4">Messages This Week</h2>
-          <div className="h-48 sm:h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} barGap={4}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={35} />
-                <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
-                <Legend wrapperStyle={{ fontSize: '12px' }} />
-                <Bar dataKey="sent" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="received" fill="hsl(var(--primary) / 0.4)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-48 sm:h-56">
+            {chartData.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                  <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={35} />
+                  <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
+                  <Legend wrapperStyle={{ fontSize: '12px' }} />
+                  <Bar dataKey="sent"     name="Sent"     fill="hsl(var(--primary))"       radius={[4,4,0,0]} />
+                  <Bar dataKey="received" name="Received" fill="hsl(var(--primary) / 0.4)" radius={[4,4,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">No message data yet</div>
+            )}
           </div>
         </div>
 
-        {/* Recent Chats — real data */}
+        {/* Reminders Overview */}
         <div className="bg-card rounded-xl border border-border p-4 sm:p-5">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-foreground">Recent Conversations</h2>
-            <button onClick={loadChats} className="text-xs text-muted-foreground hover:text-foreground">
-              <RefreshCw className="w-3 h-3" />
-            </button>
+            <h2 className="text-sm font-semibold text-foreground">Reminders</h2>
+            <button onClick={() => navigate('/reminders')} className="text-xs text-primary hover:underline">View all</button>
           </div>
-          <div className="space-y-2">
-            {chats.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-6">No conversations yet</p>
-            ) : chats.slice(0, 5).map((chat) => {
-              const initials = (chat.contact?.name || '?').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+          <div className="space-y-3">
+            {[
+              { label: 'Pending',   count: reminderStats.pending,   color: 'bg-blue-500',   text: 'text-blue-500' },
+              { label: 'Overdue',   count: reminderStats.overdue,   color: 'bg-destructive', text: 'text-destructive' },
+              { label: 'Completed', count: reminderStats.completed, color: 'bg-green-500',  text: 'text-green-500' },
+            ].map(r => {
+              const total = reminders.length || 1;
               return (
-                <div key={chat.id} className="flex items-center gap-3 cursor-pointer hover:bg-surface-hover p-2 rounded-lg transition-colors" onClick={() => handleChatClick(chat)}>
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                    <span className="text-[10px] font-semibold text-primary">{initials}</span>
+                <div key={r.label} className="flex items-center gap-3">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${r.color}`} />
+                  <span className="text-sm text-foreground flex-1">{r.label}</span>
+                  <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${r.color}`} style={{ width: `${(r.count / total) * 100}%` }} />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{chat.contact?.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{chat.lastMessage || 'No messages yet'}</p>
-                  </div>
-                  {chat.unreadCount > 0 && (
-                    <span className="min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-semibold shrink-0">
-                      {chat.unreadCount}
-                    </span>
-                  )}
+                  <span className={`text-sm font-semibold w-5 text-right ${r.text}`}>{r.count}</span>
                 </div>
               );
             })}
+            {reminders.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">No reminders yet</p>}
+          </div>
+          {reminderStats.overdue > 0 && (
+            <div className="mt-4 p-2.5 rounded-lg bg-destructive/10 border border-destructive/20">
+              <p className="text-xs text-destructive font-medium">⚠️ {reminderStats.overdue} overdue reminder{reminderStats.overdue > 1 ? 's' : ''}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Row 3 — Pipeline + Recent Activity */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        {/* Pipeline Stage Breakdown */}
+        <div className="bg-card rounded-xl border border-border p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-foreground">Pipeline Stages</h2>
+            <button onClick={() => navigate('/pipeline')} className="text-xs text-primary hover:underline">View all</button>
+          </div>
+          <div className="space-y-3">
+            {pipeline.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">No pipeline data yet</p>
+            ) : (() => {
+              const total = pipeline.reduce((s, st) => s + (st.contacts?.length || 0), 0) || 1;
+              const colors = ['bg-blue-500', 'bg-yellow-500', 'bg-orange-500', 'bg-green-500', 'bg-purple-500'];
+              return pipeline.map((stage, i) => {
+                const count = stage.contacts?.length || 0;
+                return (
+                  <div key={stage.id} className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full shrink-0 ${colors[i % colors.length]}`} />
+                    <span className="text-sm text-foreground flex-1 truncate">{stage.name}</span>
+                    <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${colors[i % colors.length]}`} style={{ width: `${(count / total) * 100}%` }} />
+                    </div>
+                    <span className="text-sm font-semibold text-foreground w-5 text-right">{count}</span>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+
+        {/* Recent Activity Feed */}
+        <div className="bg-card rounded-xl border border-border p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-foreground">Recent Activity</h2>
+            <button onClick={() => navigate('/chats')} className="text-xs text-primary hover:underline">View all</button>
+          </div>
+          <div className="space-y-1">
+            {activity.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">No recent activity</p>
+            ) : activity.map(item => (
+              <div key={item.id} onClick={() => { setSelectedChat(item.id); navigate('/chats'); }}
+                className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-hover cursor-pointer transition-colors">
+                <div className="relative shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="text-[10px] font-semibold text-primary">{item.initials}</span>
+                  </div>
+                  <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-card ${statusColor[item.status] || 'bg-gray-400'}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{item.message}</p>
+                </div>
+                <span className="text-[10px] text-muted-foreground shrink-0">{item.time}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      {/* Row 4 — Agent Performance + Contact Tags */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-card rounded-xl border border-border p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-foreground">Agent Performance</h2>
+            <button onClick={() => navigate('/agents')} className="text-xs text-primary hover:underline">View all</button>
+          </div>
+          <div className="space-y-3">
+            {agents.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">No agent data yet</p>
+            ) : agents.map(agent => (
+              <div key={agent.name} className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="text-[10px] font-semibold text-primary">{agent.name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()}</span>
+                </div>
+                <span className="text-sm text-foreground flex-1 truncate">{agent.name}</span>
+                <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary rounded-full" style={{ width: `${(agent.chats / maxChats) * 100}%` }} />
+                </div>
+                <span className="text-xs font-semibold text-foreground w-5 text-right">{agent.chats}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-card rounded-xl border border-border p-4 sm:p-5">
+          <h2 className="text-sm font-semibold text-foreground mb-4">Contact Tags</h2>
+          <div className="h-48">
+            {tagData.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={tagData} cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={4} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+                    {tagData.map((_, i) => <Cell key={i} fill={TAG_COLORS[i % TAG_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">No tag data yet</div>
+            )}
           </div>
         </div>
       </div>

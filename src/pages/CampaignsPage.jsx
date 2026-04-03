@@ -1,11 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Send, Clock, FileText, CheckCircle, Edit, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, Send, Clock, FileText, CheckCircle, Edit, Trash2, RefreshCw, ImagePlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { useRole } from '@/hooks/useRole';
+import { exportCampaignsPDF } from '@/lib/exportPDF';
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 const getHeaders = () => {
@@ -20,7 +24,7 @@ const statusConfig = {
   pending:   { label: 'Pending',   icon: Clock,       className: 'bg-warning/10 text-warning' },
 };
 
-const emptyForm = { name: '', template: '', scheduledAt: '' };
+const emptyForm = { name: '', template: '', scheduledAt: '', message: '', imageUrl: '', imageFile: null };
 
 export default function CampaignsPage() {
   const location = useLocation();
@@ -29,6 +33,12 @@ export default function CampaignsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editTarget, setEditTarget] = useState(null);
   const [form, setForm]             = useState(emptyForm);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const imageInputRef = useRef(null);
+  const [confirmSendId, setConfirmSendId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const { isAdmin } = useRole();
 
   const fetchCampaigns = async () => {
     setLoading(true);
@@ -43,48 +53,77 @@ export default function CampaignsPage() {
 
   useEffect(() => { fetchCampaigns(); }, []);
 
-  // Auto-open when navigated from Templates
+  // Auto-open when navigated from Templates or Contacts
   useEffect(() => {
     if (location.state?.templateName) {
-      setForm({ name: '', template: location.state.templateName, scheduledAt: '' });
-      setEditTarget(null);
-      setDialogOpen(true);
+      setForm({ ...emptyForm, template: location.state.templateName });
+      setEditTarget(null); setDialogOpen(true);
+    }
+    if (location.state?.selectedContactIds?.length) {
+      setForm({ ...emptyForm });
+      setEditTarget(null); setDialogOpen(true);
     }
   }, [location.state]);
 
-  const openNew = () => { setEditTarget(null); setForm(emptyForm); setDialogOpen(true); };
-  const openEdit = (c) => { setEditTarget(c); setForm({ name: c.name, template: c.template_name || '', scheduledAt: c.scheduled_at || '' }); setDialogOpen(true); };
+  const openNew = () => { setEditTarget(null); setForm(emptyForm); setImagePreview(null); setDialogOpen(true); };
+  const openEdit = (c) => { setEditTarget(c); setForm({ name: c.name, template: c.template_name || '', scheduledAt: c.scheduled_at || '', message: c.message || '', imageUrl: c.image_url || '', imageFile: null }); setImagePreview(c.image_url || null); setDialogOpen(true); };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setForm(f => ({ ...f, imageFile: file }));
+    setImagePreview(URL.createObjectURL(file));
+  };
+
+  const removeImage = () => {
+    setForm(f => ({ ...f, imageFile: null, imageUrl: '' }));
+    setImagePreview(null);
+    if (imageInputRef.current) imageInputRef.current.value = '';
+  };
 
   const handleSave = async () => {
     if (!form.name.trim()) return;
+    setUploading(true);
     try {
+      let image_url = form.imageUrl;
+      // Upload image first if a new file was selected
+      if (form.imageFile) {
+        const fd = new FormData();
+        fd.append('image', form.imageFile);
+        const uploadRes = await fetch(`${BACKEND}/api/campaigns/upload-image`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${localStorage.getItem('crm_token')}` },
+          body: fd,
+        });
+        const uploadData = await uploadRes.json();
+        if (uploadData.success) image_url = uploadData.url;
+      }
+      const payload = { name: form.name, template_name: form.template, scheduled_at: form.scheduledAt || null, message: form.message, image_url: image_url || null };
       if (editTarget) {
-        const res  = await fetch(`${BACKEND}/api/campaigns/${editTarget.id}`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ name: form.name, template_name: form.template, scheduled_at: form.scheduledAt || null }) });
+        const res  = await fetch(`${BACKEND}/api/campaigns/${editTarget.id}`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify(payload) });
         const data = await res.json();
         if (data.success) setCampaigns(prev => prev.map(c => c.id === editTarget.id ? data.data : c));
       } else {
-        const res  = await fetch(`${BACKEND}/api/campaigns`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ name: form.name, template_name: form.template, scheduled_at: form.scheduledAt || null }) });
+        const res  = await fetch(`${BACKEND}/api/campaigns`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(payload) });
         const data = await res.json();
         if (data.success) setCampaigns(prev => [...prev, data.data]);
       }
-    } catch { /* ignore */ }
+    } catch { /* ignore */ } finally { setUploading(false); }
     setDialogOpen(false);
   };
 
   const handleSend = async (campaign) => {
-    if (!confirm(`Send "${campaign.name}" to all contacts?`)) return;
     try {
       const res  = await fetch(`${BACKEND}/api/campaigns/${campaign.id}/send`, { method: 'PATCH', headers: getHeaders() });
       const data = await res.json();
-      if (data.success) setCampaigns(prev => prev.map(c => c.id === campaign.id ? data.data : c));
+      if (data.success) { setCampaigns(prev => prev.map(c => c.id === campaign.id ? data.data : c)); toast.success('Campaign sent successfully!'); }
     } catch { /* ignore */ }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this campaign?')) return;
     try {
       await fetch(`${BACKEND}/api/campaigns/${id}`, { method: 'DELETE', headers: getHeaders() });
-      setCampaigns(prev => prev.filter(c => c.id !== id));
+      setCampaigns(prev => prev.filter(c => c.id !== id)); toast.success('Campaign deleted.');
     } catch { /* ignore */ }
   };
 
@@ -99,9 +138,14 @@ export default function CampaignsPage() {
           <Button variant="outline" size="sm" onClick={fetchCampaigns} disabled={loading}>
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
-          <Button size="sm" className="gap-1.5" onClick={openNew}>
-            <Plus className="w-4 h-4" /> New Campaign
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => exportCampaignsPDF(campaigns)}>
+            <span className="text-[10px] font-bold">PDF</span> Export
           </Button>
+          {isAdmin && (
+            <Button size="sm" className="gap-1.5" onClick={openNew}>
+              <Plus className="w-4 h-4" /> New Campaign
+            </Button>
+          )}
         </div>
       </div>
 
@@ -119,7 +163,10 @@ export default function CampaignsPage() {
             const progress = total > 0 ? (sent / total) * 100 : 0;
             return (
               <div key={campaign.id} className="bg-card rounded-xl border border-border p-5 hover:shadow-sm transition-shadow">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-3">
+                  {campaign.image_url && (
+                    <img src={campaign.image_url} alt="campaign" className="w-14 h-14 rounded-lg object-cover shrink-0 border border-border" />
+                  )}
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <h3 className="text-sm font-semibold text-foreground">{campaign.name}</h3>
@@ -131,19 +178,21 @@ export default function CampaignsPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-1">
-                    {campaign.status === 'draft' && (
-                      <Button size="sm" variant="default" className="gap-1.5 text-xs" onClick={() => handleSend(campaign)}>
+                    {isAdmin && campaign.status === 'draft' && (
+                      <Button size="sm" variant="default" className="gap-1.5 text-xs" onClick={() => setConfirmSendId(campaign)}>
                         <Send className="w-3 h-3" /> Send
                       </Button>
                     )}
-                    {campaign.status !== 'sent' && (
+                    {isAdmin && campaign.status !== 'sent' && (
                       <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => openEdit(campaign)}>
                         <Edit className="w-3 h-3" /> Edit
                       </Button>
                     )}
-                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleDelete(campaign.id)}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
+                    {isAdmin && (
+                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setConfirmDeleteId(campaign.id)}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
                 {campaign.status === 'sent' && (
@@ -162,14 +211,41 @@ export default function CampaignsPage() {
         </div>
       )}
 
+      <ConfirmDialog open={!!confirmSendId} title="Send Campaign" description={`Send "${confirmSendId?.name}" to all contacts?`} confirmLabel="Send" variant="default" onConfirm={() => handleSend(confirmSendId)} onCancel={() => setConfirmSendId(null)} />
+      <ConfirmDialog open={!!confirmDeleteId} title="Delete Campaign" description="This campaign will be permanently deleted." confirmLabel="Delete" onConfirm={() => handleDelete(confirmDeleteId)} onCancel={() => setConfirmDeleteId(null)} />
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editTarget ? 'Edit Campaign' : 'New Campaign'}</DialogTitle></DialogHeader>
           <div className="space-y-4 pt-2">
             <div><Label>Campaign Name</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Diwali Sale 2024" className="mt-1.5" /></div>
-            <div><Label>Template Name</Label><Input value={form.template} onChange={e => setForm({ ...form, template: e.target.value })} placeholder="e.g. diwali_sale" className="mt-1.5" /></div>
+            <div><Label>Message (optional)</Label><textarea value={form.message} onChange={e => setForm({ ...form, message: e.target.value })} placeholder="Type your broadcast message..." rows={3} className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-ring" /></div>
+
+            {/* Image Upload */}
+            <div>
+              <Label>Image (optional)</Label>
+              <div className="mt-1.5">
+                {imagePreview ? (
+                  <div className="relative w-full rounded-lg overflow-hidden border border-border">
+                    <img src={imagePreview} alt="preview" className="w-full max-h-40 object-cover" />
+                    <button onClick={removeImage} className="absolute top-2 right-2 p-1 rounded-full bg-background/80 hover:bg-background border border-border">
+                      <X className="w-3.5 h-3.5 text-foreground" />
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={() => imageInputRef.current?.click()} className="w-full h-24 rounded-lg border-2 border-dashed border-border hover:border-primary hover:bg-muted/50 transition-colors flex flex-col items-center justify-center gap-1.5 text-muted-foreground">
+                    <ImagePlus className="w-5 h-5" />
+                    <span className="text-xs">Click to upload image</span>
+                    <span className="text-[10px]">PNG, JPG, WEBP up to 5MB</span>
+                  </button>
+                )}
+                <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+              </div>
+            </div>
+
+            <div><Label>Template Name (optional)</Label><Input value={form.template} onChange={e => setForm({ ...form, template: e.target.value })} placeholder="e.g. diwali_sale" className="mt-1.5" /></div>
             <div><Label>Schedule Date (optional)</Label><Input type="datetime-local" value={form.scheduledAt} onChange={e => setForm({ ...form, scheduledAt: e.target.value })} className="mt-1.5" /></div>
-            <Button onClick={handleSave} className="w-full" disabled={!form.name.trim()}>{editTarget ? 'Save Changes' : 'Create Campaign'}</Button>
+            <Button onClick={handleSave} className="w-full" disabled={!form.name.trim() || uploading}>{uploading ? 'Saving...' : editTarget ? 'Save Changes' : 'Create Campaign'}</Button>
           </div>
         </DialogContent>
       </Dialog>
