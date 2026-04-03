@@ -46,6 +46,8 @@ export default function TemplatesPage() {
   const handleOpenSubmit    = () => setSubmitOpen(true);
   const handleOpenCreate    = () => setDialogOpen(true);
   const handleCloseUpload   = (v) => { setUploadOpen(v); setUploadResult(null); };
+
+  const fetchTemplates = async () => {
     setLoading(true);
     try {
       const res  = await fetch(`${BACKEND}/api/templates`, { headers: getHeaders() });
