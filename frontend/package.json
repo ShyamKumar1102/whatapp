@@ -1,0 +1,11 @@
+{
+  "name": "crm-frontend",
+  "version": "1.0.0",
+  "description": "WhatsApp CRM Frontend",
+  "scripts": {
+    "dev":     "cd .. && npm run dev",
+    "build":   "cd .. && npm run build",
+    "preview": "cd .. && npm run preview",
+    "install": "cd .. && npm install"
+  }
+}
