@@ -21,6 +21,15 @@ const getAuthHeaders = () => {
 export default function ChatsPage() {
   const { chats, messages, selectedChatId, setSelectedChat, addMessage, loadChats, user } = useStore();
   const navigate = useNavigate();
+
+  const handleDeleteForMe = (messageId) => {
+    useStore.setState(state => ({ messages: state.messages.map(m => m.id === messageId ? { ...m, deleted_for_me: true } : m) }));
+  };
+
+  const handleDeleteForEveryone = async (messageId) => {
+    useStore.setState(state => ({ messages: state.messages.map(m => m.id === messageId ? { ...m, deleted_for_everyone: true } : m) }));
+    try { await fetch(BACKEND + "/api/messages/ + messageId, { method: DELETE, headers: getAuthHeaders() }); } catch {}
+ };
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
