@@ -44,7 +44,7 @@ export default function Topbar() {
     <header className="h-14 bg-card border-b border-border flex items-center justify-between px-4 sm:px-6 shrink-0 gap-3">
       {/* Left — hamburger + search */}
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <button onClick={toggleSidebar} className="md:hidden p-2 rounded-lg hover:bg-surface-hover transition-colors shrink-0">
+        <button onClick={toggleSidebar} title="Toggle menu" className="md:hidden p-2 rounded-lg hover:bg-surface-hover transition-colors shrink-0">
           <Menu className="w-4 h-4 text-muted-foreground" />
         </button>
         <div className="relative w-full max-w-xs">
@@ -85,7 +85,7 @@ export default function Topbar() {
       {/* Right — bell + user + logout */}
       <div className="flex items-center gap-2 shrink-0">
         <div className="relative">
-          <button onClick={() => setShowNotif(!showNotif)} className="relative p-2 rounded-lg hover:bg-surface-hover transition-colors">
+          <button onClick={() => setShowNotif(!showNotif)} title="Notifications" className="relative p-2 rounded-lg hover:bg-surface-hover transition-colors">
             <Bell className="w-4 h-4 text-muted-foreground" />
             {unread > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />}
           </button>
@@ -97,7 +97,7 @@ export default function Topbar() {
                 </span>
                 <div className="flex items-center gap-2">
                   {notifications.length > 0 && <button onClick={markAllRead} className="text-[10px] text-primary hover:underline">Mark all read</button>}
-                  <button onClick={() => setShowNotif(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+                  <button onClick={() => setShowNotif(false)} title="Close notifications"><X className="w-4 h-4 text-muted-foreground" /></button>
                 </div>
               </div>
               <div className="max-h-80 overflow-y-auto">

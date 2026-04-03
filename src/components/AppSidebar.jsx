@@ -109,12 +109,14 @@ export default function AppSidebar() {
         )}
 
         <button onClick={toggleDarkMode}
+          title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors w-full">
           {isDarkMode ? <Sun className="w-4 h-4 shrink-0" /> : <Moon className="w-4 h-4 shrink-0" />}
           {!sidebarCollapsed && <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>}
         </button>
 
         <button onClick={logout}
+          title="Logout"
           className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors w-full">
           <LogOut className="w-4 h-4 shrink-0" />
           {!sidebarCollapsed && <span>Logout</span>}
@@ -123,6 +125,7 @@ export default function AppSidebar() {
 
       {/* Collapse toggle */}
       <button onClick={toggleSidebar}
+        title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-card border border-border flex items-center justify-center shadow-sm hover:bg-surface-hover transition-colors z-10">
         {sidebarCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
       </button>
