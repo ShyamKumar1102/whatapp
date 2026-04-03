@@ -39,6 +39,8 @@ export default function VerificationPage() {
   const handleGstChange = (e) => handleFileUpload('gst', e.target.files[0]);
   const handlePanChange = (e) => handleFileUpload('pan', e.target.files[0]);
 
+  const s = statusConfig[status];
+
   const docConfig = [
     { key: 'gst', label: 'GST Certificate', ref: gstRef, onClick: handleGstClick, onChange: handleGstChange },
     { key: 'pan', label: 'PAN Card',         ref: panRef, onClick: handlePanClick, onChange: handlePanChange },
