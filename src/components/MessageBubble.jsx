@@ -28,11 +28,13 @@ export default function MessageBubble({ message, onDeleteForMe, onDeleteForEvery
 
   const handleDeleteMe = () => {
     setShowMenu(false);
+    if (!window.confirm('Delete this message for you?')) return;
     onDeleteForMe?.(message.id);
   };
 
   const handleDeleteEveryone = () => {
     setShowMenu(false);
+    if (!window.confirm('Delete this message for everyone? This cannot be undone.')) return;
     onDeleteForEveryone?.(message.id);
   };
 
