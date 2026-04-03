@@ -15,6 +15,13 @@ const apiFetch = async (path, options = {}) => {
       ...options.headers,
     },
   });
+  // Auto-logout on 401 — token expired or invalid
+  if (res.status === 401) {
+    localStorage.removeItem('crm_token');
+    localStorage.removeItem('crm_user');
+    window.location.href = '/login';
+    return { success: false, message: 'Session expired' };
+  }
   return res.json();
 };
 
