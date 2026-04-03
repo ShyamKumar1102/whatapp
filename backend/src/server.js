@@ -9,7 +9,7 @@ import multer         from 'multer';
 import path           from 'path';
 import fs             from 'fs';
 import { fileURLToPath } from 'url';
-import { TABLES, dbPut, dbGet, dbScan, dbDelete, dbUpdate, generateId } from './config/database.js';
+import { TABLES, dbPut, dbGet, dbScan, dbDelete, dbUpdate, generateId, getConversationByPhone, getMessagesByConversation, updateConversationLastMessage } from './config/database.js';
 import { register, login, getMe, protect } from './middleware/auth.js';
 
 dotenv.config();
@@ -184,25 +184,51 @@ app.post('/webhook', async (req, res) => {
         contact = { id: generateId(), name, phone, tags: [], is_online: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
         await dbPut(TABLES.CONTACTS, contact);
         io.emit('contact_created', contact);
+      } else {
+        contact.is_online = true;
+        contact.name = name;
+        await dbUpdate(TABLES.CONTACTS, contact.id, { is_online: true, name, updated_at: new Date().toISOString() });
       }
 
-      // Upsert conversation
-      const convs = await dbScan(TABLES.CONVERSATIONS, c => c.contact_id === contact.id);
-      let conv = convs[0];
+      // Upsert conversation — one per customer phone number
+      let conv = await getConversationByPhone(phone);
       if (!conv) {
-        conv = { id: generateId(), contact_id: contact.id, status: 'open', channel: 'whatsapp', pushed_to_admin: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+        conv = {
+          id:              generateId(),
+          contact_id:      contact.id,
+          contact_phone:   phone,
+          status:          'open',
+          channel:         'whatsapp',
+          pushed_to_admin: false,
+          unread_count:    1,
+          last_message:    content,
+          last_message_at: new Date().toISOString(),
+          created_at:      new Date().toISOString(),
+          updated_at:      new Date().toISOString(),
+        };
         await dbPut(TABLES.CONVERSATIONS, conv);
         io.emit('conversation_created', { ...conv, contact });
+      } else {
+        // Update last message and increment unread
+        await updateConversationLastMessage(conv.id, content, true);
+        conv.unread_count = (conv.unread_count || 0) + 1;
       }
 
+      // Save message — stored with conversation_id + contact_phone for per-customer queries
       const message = {
-        id: generateId(), chatId: conv.id, conversation_id: conv.id,
-        content, type: metaMsg.type, sender: 'contact', status: 'received',
+        id:              generateId(),
+        chatId:          conv.id,
+        conversation_id: conv.id,
+        contact_phone:   phone,
+        content,
+        type:            metaMsg.type,
+        sender:          'contact',
+        status:          'received',
         meta_message_id: metaMsg.id,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        created_at: new Date().toISOString(),
+        timestamp:       new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        created_at:      new Date().toISOString(),
       };
-      await dbPut(TABLES.MESSAGES, message);
+      await dbPut(TABLES.MESSAGES, message);`n  await updateConversationLastMessage(chatId, content, false);
       io.emit('new_message', { ...message, contact, chatId: conv.id });
       console.log(`📨 [${phone}] ${name}: ${content}`);
     }
@@ -228,12 +254,12 @@ app.post('/api/messages/send', protect, async (req, res) => {
   const contact = conv ? (await dbGet(TABLES.CONTACTS, conv.contact_id)) : null;
 
   const message = {
-    id: generateId(), chatId, conversation_id: chatId, content, type,
+    id: generateId(), chatId, conversation_id: chatId, contact_phone: contact?.phone || '', content, type,
     sender: 'agent', status: 'sent',
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     created_at: new Date().toISOString(),
   };
-  await dbPut(TABLES.MESSAGES, message);
+  await dbPut(TABLES.MESSAGES, message);`n  await updateConversationLastMessage(chatId, content, false);
 
   if (process.env.META_ACCESS_TOKEN && process.env.META_PHONE_NUMBER_ID && contact) {
     try {
