@@ -44,7 +44,7 @@ export default function Topbar() {
     <header className="h-14 bg-card border-b border-border flex items-center justify-between px-4 sm:px-6 shrink-0 gap-3">
       {/* Left — hamburger + search */}
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <button onClick={toggleSidebar} title="Toggle menu" className="md:hidden p-2 rounded-lg hover:bg-surface-hover transition-colors shrink-0">
+        <button onClick={toggleSidebar} title="Toggle menu" className="hidden md:flex p-2 rounded-lg hover:bg-surface-hover transition-colors shrink-0">
           <Menu className="w-4 h-4 text-muted-foreground" />
         </button>
         <div className="relative w-full max-w-xs">

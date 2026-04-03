@@ -160,6 +160,7 @@ export default function ContactsPage() {
               </div>
               <div className="flex gap-1">
                 <button onClick={() => handleMessage(contact)} className="p-1.5 rounded hover:bg-muted"><MessageSquare className="w-4 h-4 text-muted-foreground" /></button>
+                <button onClick={() => window.open(`tel:${contact.phone}`, '_self')} className="p-1.5 rounded hover:bg-muted"><Phone className="w-4 h-4 text-muted-foreground" /></button>
                 {isAdmin && <button onClick={() => setConfirmDeleteId(contact.id)} className="p-1.5 rounded hover:bg-muted"><Trash2 className="w-4 h-4 text-destructive" /></button>}
               </div>
             </div>
