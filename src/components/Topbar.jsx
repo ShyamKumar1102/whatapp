@@ -90,7 +90,7 @@ export default function Topbar() {
             {unread > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />}
           </button>
           {showNotif && (
-            <div className="absolute right-0 top-11 w-80 bg-card border border-border rounded-xl shadow-lg z-50">
+            <div className="absolute right-0 top-11 w-[calc(100vw-2rem)] sm:w-80 max-w-sm bg-card border border-border rounded-xl shadow-lg z-50">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <span className="text-sm font-semibold text-foreground">
                   Notifications {unread > 0 && <span className="ml-1 text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">{unread}</span>}

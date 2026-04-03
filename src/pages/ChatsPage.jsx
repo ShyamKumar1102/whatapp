@@ -313,7 +313,7 @@ export default function ChatsPage() {
     <div className="flex flex-col h-screen min-w-[360px]">
       <ConfirmDialog open={confirmBlock} title="Block Contact" description={`Block ${selectedChat?.contact.name}? They won't be able to send messages.`} confirmLabel="Block" onConfirm={() => { toast.success(`${selectedChat?.contact.name} blocked.`); }} onCancel={() => setConfirmBlock(false)} />
       <ConfirmDialog open={confirmClear} title="Clear Chat" description="All messages in this chat will be cleared." confirmLabel="Clear" onConfirm={() => { toast.success('Chat cleared.'); }} onCancel={() => setConfirmClear(false)} />
-      <div className="p-6 pb-0 shrink-0">
+      <div className="p-4 sm:p-6 pb-0 shrink-0">
         <h1 className="text-xl font-semibold text-foreground">Chats</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Manage your WhatsApp conversations
@@ -336,7 +336,7 @@ export default function ChatsPage() {
         </div>
       </div>
 
-      <div className="flex-1 p-6 pt-6 min-h-0">
+      <div className="flex-1 p-3 sm:p-6 pt-3 sm:pt-6 min-h-0">
         <div className="flex h-full rounded-xl border bg-card overflow-hidden min-w-0">
           {/* Chat List */}
           <div className={cn(

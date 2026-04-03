@@ -15,20 +15,12 @@ export default function ReminderFilters({ activeFilter, onFilterChange, reminder
   };
 
   return (
-    <Tabs value={activeFilter} onValueChange={onFilterChange} className="mt-6">
-      <TabsList>
-        <TabsTrigger value="all">
-          All ({getFilterCount('all')})
-        </TabsTrigger>
-        <TabsTrigger value="due">
-          Due ({getFilterCount('due')})
-        </TabsTrigger>
-        <TabsTrigger value="pending">
-          Pending ({getFilterCount('pending')})
-        </TabsTrigger>
-        <TabsTrigger value="completed">
-          Completed ({getFilterCount('completed')})
-        </TabsTrigger>
+    <Tabs value={activeFilter} onValueChange={onFilterChange} className="mt-4">
+      <TabsList className="flex flex-wrap h-auto gap-1 bg-muted p-1">
+        <TabsTrigger value="all" className="text-xs">All ({getFilterCount('all')})</TabsTrigger>
+        <TabsTrigger value="due" className="text-xs">Due ({getFilterCount('due')})</TabsTrigger>
+        <TabsTrigger value="pending" className="text-xs">Pending ({getFilterCount('pending')})</TabsTrigger>
+        <TabsTrigger value="completed" className="text-xs">Completed ({getFilterCount('completed')})</TabsTrigger>
       </TabsList>
     </Tabs>
   );

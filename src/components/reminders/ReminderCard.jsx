@@ -68,33 +68,22 @@ export default function ReminderCard({ reminder, onEdit, onDelete, onComplete })
         </Badge>
       </div>
       
-      <div className="flex items-center gap-2">
-        {reminder.status !== 'completed' && (
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => onComplete(reminder.id)}
-            className="text-primary hover:text-primary"
-          >
-            <CheckCircle className="h-4 w-4 mr-1" />
-            Complete
+      <div className="flex items-center gap-1 flex-wrap">
+        {reminder.status !== 'completed' && onComplete && (
+          <Button variant="ghost" size="sm" onClick={() => onComplete(reminder.id)} className="text-primary hover:text-primary text-xs h-7 px-2">
+            <CheckCircle className="h-3.5 w-3.5 mr-1" /> Complete
           </Button>
         )}
-        <Button 
-          variant="ghost" 
-          size="sm"
-          onClick={() => onEdit(reminder)}
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
-        <Button 
-          variant="ghost" 
-          size="sm"
-          onClick={() => onDelete(reminder.id)}
-          className="text-destructive hover:text-destructive"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        {onEdit && (
+          <Button variant="ghost" size="sm" onClick={() => onEdit(reminder)} className="h-7 w-7 p-0">
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        {onDelete && (
+          <Button variant="ghost" size="sm" onClick={() => onDelete(reminder.id)} className="text-destructive hover:text-destructive h-7 w-7 p-0">
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
     </div>
   );
