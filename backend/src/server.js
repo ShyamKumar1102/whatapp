@@ -301,6 +301,34 @@ app.get('/api/messages/chart', protect, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+
+// ── Delete message for me only (only this agent won't see it)
+app.patch('/api/messages/:messageId/delete-for-me', protect, async (req, res) => {
+  try {
+    await dbUpdate(TABLES.MESSAGES, req.params.messageId, {
+      deleted_for_me: true,
+      updated_at: new Date().toISOString()
+    });
+    res.json({ success: true, message: 'Message deleted for you' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── Delete message for everyone (marks as deleted in DynamoDB)
+app.delete('/api/messages/:messageId', protect, async (req, res) => {
+  try {
+    await dbUpdate(TABLES.MESSAGES, req.params.messageId, {
+      deleted_for_everyone: true,
+      content: 'This message was deleted',
+      updated_at: new Date().toISOString()
+    });
+    res.json({ success: true, message: 'Message deleted for everyone' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 app.delete('/api/messages/:messageId', protect, async (req, res) => {
   await dbUpdate(TABLES.MESSAGES, req.params.messageId, { deleted_for_everyone: true, content: 'This message was deleted', updated_at: new Date().toISOString() });
   res.json({ success: true, message: 'Message deleted' });
