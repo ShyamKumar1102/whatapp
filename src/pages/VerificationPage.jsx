@@ -39,7 +39,7 @@ export default function VerificationPage() {
   const handleGstChange = (e) => handleFileUpload('gst', e.target.files[0]);
   const handlePanChange = (e) => handleFileUpload('pan', e.target.files[0]);
 
-  const s = statusConfig[status];
+  const currentStatus = statusConfig[status];
 
   const docConfig = [
     { key: 'gst', label: 'GST Certificate', ref: gstRef, onClick: handleGstClick, onChange: handleGstChange },
@@ -53,9 +53,9 @@ export default function VerificationPage() {
           <h1 className="text-xl font-semibold text-foreground">Meta Verification</h1>
           <p className="text-sm text-muted-foreground mt-1">Verify your business with Meta to unlock full WhatsApp API access</p>
         </div>
-        <span className={cn('text-xs font-medium px-3 py-1.5 rounded-full border flex items-center gap-1.5', s.className)}>
+        <span className={cn('text-xs font-medium px-3 py-1.5 rounded-full border flex items-center gap-1.5', currentStatus.className)}>
           {status === 'approved' && <CheckCircle className="w-3 h-3" />}
-          {s.label}
+          {currentStatus.label}
         </span>
       </div>
 
