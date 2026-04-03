@@ -113,17 +113,15 @@ export default function Reminders() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Reminders</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {reminders.length} total reminders
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">{reminders.length} total reminders</p>
         </div>
         {isAdmin && (
-        <Button variant="default" onClick={handleCreateReminder}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Reminder
-        </Button>
+          <Button variant="default" onClick={handleCreateReminder}>
+            <Plus className="h-4 w-4 mr-2" /> New Reminder
+          </Button>
         )}
       </div>
 
