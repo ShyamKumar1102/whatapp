@@ -146,22 +146,25 @@ export default function TemplatesPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Templates</h1>
           <p className="text-sm text-muted-foreground mt-1">Manage WhatsApp message templates</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 justify-end">
           <Button variant="outline" size="sm" onClick={fetchTemplates} disabled={loading}>
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
           {isAdmin && (
             <>
               <Button variant="outline" size="sm" className="gap-1.5" onClick={handleOpenUpload}>
-                <Upload className="w-4 h-4" /> Bulk Upload
+                <Upload className="w-4 h-4" /><span className="hidden sm:inline"> Bulk Upload</span>
               </Button>
               <Button variant="outline" size="sm" className="gap-1.5" onClick={handleOpenSubmit}>
-                <FileUp className="w-4 h-4" /> Submit to Meta
+                <FileUp className="w-4 h-4" /><span className="hidden sm:inline"> Submit to Meta</span>
               </Button>
               <Button size="sm" className="gap-1.5" onClick={handleOpenCreate}>
-                <Plus className="w-4 h-4" /> Create
+                <Plus className="w-4 h-4" /><span className="hidden sm:inline"> Create</span>
               </Button>
             </>
           )}

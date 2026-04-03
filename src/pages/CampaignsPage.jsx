@@ -133,18 +133,21 @@ export default function CampaignsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h1 className="text-xl font-semibold text-foreground">Campaigns</h1>
           <p className="text-sm text-muted-foreground mt-1">Create and manage broadcast campaigns</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 justify-end">
           <Button variant="outline" size="sm" onClick={fetchCampaigns} disabled={loading}>
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5 text-xs" onClick={() => exportCampaignsPDF(campaigns)}>
-            <span className="text-[10px] font-bold">PDF</span> Export
+            <span className="text-[10px] font-bold">PDF</span>
           </Button>
           {isAdmin && (
             <Button size="sm" className="gap-1.5" onClick={handleOpenNew}>
-              <Plus className="w-4 h-4" /> New Campaign
+              <Plus className="w-4 h-4" /><span className="hidden sm:inline"> New Campaign</span>
             </Button>
           )}
         </div>

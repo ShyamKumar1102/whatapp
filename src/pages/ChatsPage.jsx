@@ -310,7 +310,7 @@ export default function ChatsPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen min-w-[360px]">
+    <div className="flex flex-col h-screen">
       <ConfirmDialog open={confirmBlock} title="Block Contact" description={`Block ${selectedChat?.contact.name}? They won't be able to send messages.`} confirmLabel="Block" onConfirm={() => { toast.success(`${selectedChat?.contact.name} blocked.`); }} onCancel={() => setConfirmBlock(false)} />
       <ConfirmDialog open={confirmClear} title="Clear Chat" description="All messages in this chat will be cleared." confirmLabel="Clear" onConfirm={() => { toast.success('Chat cleared.'); }} onCancel={() => setConfirmClear(false)} />
       <div className="p-4 sm:p-6 pb-0 shrink-0">
@@ -340,7 +340,7 @@ export default function ChatsPage() {
         <div className="flex h-full rounded-xl border bg-card overflow-hidden min-w-0">
           {/* Chat List */}
           <div className={cn(
-            'w-80 min-w-[280px] border-r border-border flex flex-col bg-card shrink-0',
+            'w-64 lg:w-72 border-r border-border flex flex-col bg-card shrink-0',
             selectedChatId && 'hidden md:flex'
           )}>
             <div className="p-3 border-b border-border shrink-0">
@@ -368,7 +368,7 @@ export default function ChatsPage() {
 
           {/* Chat Window */}
           {selectedChat ? (
-            <div className="flex-1 flex flex-col min-w-0" style={{minWidth: '320px'}}>
+            <div className="flex-1 flex flex-col min-w-0">
               {/* Chat Header */}
               <div className="h-14 bg-card border-b border-border flex items-center justify-between px-4 shrink-0">
                 <div className="flex items-center gap-3">
@@ -410,7 +410,7 @@ export default function ChatsPage() {
                     </button>
                     {showMoreMenu && (
                       <div className="absolute right-0 top-10 w-48 bg-card border border-border rounded-xl shadow-lg z-50 py-1">
-                        <button onClick={() => { setShowMoreMenu(false); setShowCustomerDetails(true); }} className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-surface-hover flex items-center gap-2 xl:hidden">
+                        <button onClick={() => { setShowMoreMenu(false); setShowCustomerDetails(true); }} className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-surface-hover flex items-center gap-2 lg:hidden">
                           <UserCircle className="w-4 h-4" /> Customer Details
                         </button>
                         <button onClick={handleMarkUnread} className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-surface-hover flex items-center gap-2">
@@ -570,14 +570,14 @@ export default function ChatsPage() {
             <>
               {/* Overlay for small screens */}
               {showCustomerDetails && (
-                <div className="fixed inset-0 bg-black/40 z-40 xl:hidden" onClick={() => setShowCustomerDetails(false)} />
+                <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setShowCustomerDetails(false)} />
               )}
               <div className={cn(
                 'flex flex-col bg-card border-l border-border transition-all duration-300',
-                'xl:relative xl:w-80 xl:flex',
+                'lg:relative lg:w-72 xl:w-80 lg:flex',
                 showCustomerDetails
                   ? 'fixed right-0 top-0 h-full w-80 z-50 flex'
-                  : 'hidden xl:flex'
+                  : 'hidden lg:flex'
               )}>
               {/* Header */}
               <div className="p-4 border-b border-border shrink-0 flex items-center justify-between">
@@ -585,7 +585,7 @@ export default function ChatsPage() {
                   <h2 className="text-sm font-semibold text-foreground">Customer Details</h2>
                   <p className="text-xs text-muted-foreground mt-1">Conversation information and actions</p>
                 </div>
-                <button onClick={() => setShowCustomerDetails(false)} className="xl:hidden p-1 rounded hover:bg-muted transition-colors">
+                <button onClick={() => setShowCustomerDetails(false)} className="lg:hidden p-1 rounded hover:bg-muted transition-colors">
                   <X className="w-4 h-4 text-muted-foreground" />
                 </button>
               </div>
