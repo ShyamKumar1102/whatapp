@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard',     path: '/',            adminOnly: false },
-  { icon: MessageSquare,   label: 'Chats',         path: '/chats',       adminOnly: false, badge: 6 },
+  { icon: MessageSquare,   label: 'Chats',         path: '/chats',       adminOnly: false },
   { icon: Users,           label: 'Contacts',      path: '/contacts',    adminOnly: false },
   { icon: Columns,         label: 'Pipeline',      path: '/pipeline',    adminOnly: false },
   { icon: Bell,            label: 'Reminders',     path: '/reminders',   adminOnly: false },
@@ -25,8 +25,9 @@ const navItems = [
 
 export default function AppSidebar() {
   const location = useLocation();
-  const { isDarkMode, toggleDarkMode, sidebarCollapsed, toggleSidebar, user, logout } = useStore();
+  const { isDarkMode, toggleDarkMode, sidebarCollapsed, toggleSidebar, user, logout, chats } = useStore();
   const { isAdmin } = useRole();
+  const totalUnread = chats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 
   const initials = (user?.name || 'U').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
@@ -76,12 +77,12 @@ export default function AppSidebar() {
                 <Lock className="w-2.5 h-2.5 text-muted-foreground/40 absolute -top-0.5 -right-0.5" />
               )}
               {/* Unread badge */}
-              {item.badge > 0 && !isLocked && (
+              {item.path === '/chats' && totalUnread > 0 && !isLocked && (
                 <span className={cn(
                   'min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-semibold',
                   sidebarCollapsed ? 'absolute -top-0.5 -right-0.5' : 'ml-auto'
                 )}>
-                  {item.badge}
+                  {totalUnread > 99 ? '99+' : totalUnread}
                 </span>
               )}
             </Link>

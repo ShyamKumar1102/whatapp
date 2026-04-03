@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Send, Paperclip, Smile, Phone, Video, MoreVertical, MessageSquare, Building2, Mic, MicOff, UserCircle, Ban, Trash2, X, Zap, ChevronDown } from 'lucide-react';
+import { Search, Send, Paperclip, Smile, Phone, Video, MoreVertical, MessageSquare, Building2, Mic, MicOff, UserCircle, Ban, Trash2, X, Zap, ChevronDown, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -33,17 +33,15 @@ export default function ChatsPage() {
   const [messageInput, setMessageInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
-  const [isInputFocused, setIsInputFocused] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showCustomerDetails, setShowCustomerDetails] = useState(false);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
   const [notes, setNotes] = useState([]);
   const [msgSearch, setMsgSearch] = useState('');
   const [showMsgSearch, setShowMsgSearch] = useState(false);
-  const [agents, setAgents] = useState([]);
-  const [showAssign, setShowAssign] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [currentLabel, setCurrentLabel] = useState(null);
   const [showReminderForm, setShowReminderForm] = useState(false);
@@ -83,6 +81,7 @@ export default function ChatsPage() {
   const LABEL_FILTERS = [
     { key: 'all',              label: 'All Chats' },
     { key: 'my',               label: 'My Chats' },
+    { key: 'pushed',           label: 'Pushed Chats' },
     { key: 'meeting_done',     label: 'Meeting Done' },
     { key: 'meeting_fixed',    label: 'Meeting Fixed' },
     { key: 'prospect',         label: 'Prospect' },
@@ -97,8 +96,9 @@ export default function ChatsPage() {
   const filteredChats = chats.filter(c => {
     const matchesSearch = c.contact.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesFilter =
-      activeFilter === 'all' ? true :
-      activeFilter === 'my'  ? c.assignedAgent === user?.id || c.assignedAgent === user?.name :
+      activeFilter === 'all'    ? true :
+      activeFilter === 'my'     ? c.assignedAgent === user?.id || c.assignedAgent === user?.name :
+      activeFilter === 'pushed' ? c.pushed_to_admin === true :
       c.label === activeFilter;
     return matchesSearch && matchesFilter;
   });
@@ -108,18 +108,11 @@ export default function ChatsPage() {
     setCurrentLabel(selectedChat?.label || null);
     setShowMsgSearch(false);
     setMsgSearch('');
-    setShowAssign(false);
     setShowReminderForm(false);
     setContactReminders([]);
     setReminderTitle('');
     setReminderDate('');
   }, [selectedChatId, selectedChat?.label]);
-
-  // Load agents once
-  useEffect(() => {
-    fetch(`${BACKEND}/api/agents`, { headers: getAuthHeaders() })
-      .then(r => r.json()).then(d => { if (d.success) setAgents(d.data); }).catch(() => {});
-  }, []);
 
   // Load notes when chat changes
   useEffect(() => {
@@ -229,17 +222,6 @@ export default function ChatsPage() {
       type: 'text',
     });
     setMessageInput('');
-    setIsInputFocused(false);
-  };
-
-  const handleAssignAgent = async (agentId) => {
-    setShowAssign(false);
-    try {
-      await fetch(`${BACKEND}/api/conversations/${selectedChatId}/assign`, {
-        method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify({ agent_id: agentId }),
-      });
-      await loadChats();
-    } catch { /* ignore */ }
   };
 
   const handleLabelChange = async (label) => {
@@ -249,7 +231,8 @@ export default function ChatsPage() {
         method: 'PATCH', headers: getAuthHeaders(), body: JSON.stringify({ label }),
       });
       await loadChats();
-    } catch { /* ignore */ }
+      toast.success(label ? `Label set to "${CHAT_LABELS.find(l => l.key === label)?.label}"` : 'Label removed');
+    } catch { toast.error('Failed to update label'); }
   };
 
   const handleAddReminder = async () => {
@@ -293,6 +276,7 @@ export default function ChatsPage() {
       await fetch(`${BACKEND}/api/conversations/${selectedChatId}/push-admin`, {
         method: 'POST', headers: getAuthHeaders(),
       });
+      useStore.setState(state => ({ chats: state.chats.map(c => c.id === selectedChatId ? { ...c, pushed_to_admin: true } : c) }));
     } catch { /* ignore */ }
     toast.success('Chat pushed to admin queue!');
   };
@@ -326,7 +310,7 @@ export default function ChatsPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen min-w-[360px]">
       <ConfirmDialog open={confirmBlock} title="Block Contact" description={`Block ${selectedChat?.contact.name}? They won't be able to send messages.`} confirmLabel="Block" onConfirm={() => { toast.success(`${selectedChat?.contact.name} blocked.`); }} onCancel={() => setConfirmBlock(false)} />
       <ConfirmDialog open={confirmClear} title="Clear Chat" description="All messages in this chat will be cleared." confirmLabel="Clear" onConfirm={() => { toast.success('Chat cleared.'); }} onCancel={() => setConfirmClear(false)} />
       <div className="p-6 pb-0 shrink-0">
@@ -353,10 +337,10 @@ export default function ChatsPage() {
       </div>
 
       <div className="flex-1 p-6 pt-6 min-h-0">
-        <div className="flex h-full rounded-xl border bg-card overflow-hidden">
+        <div className="flex h-full rounded-xl border bg-card overflow-hidden min-w-0">
           {/* Chat List */}
           <div className={cn(
-            'w-80 border-r border-border flex flex-col bg-card shrink-0',
+            'w-80 min-w-[280px] border-r border-border flex flex-col bg-card shrink-0',
             selectedChatId && 'hidden md:flex'
           )}>
             <div className="p-3 border-b border-border shrink-0">
@@ -384,7 +368,7 @@ export default function ChatsPage() {
 
           {/* Chat Window */}
           {selectedChat ? (
-            <div className="flex-1 flex flex-col min-w-0">
+            <div className="flex-1 flex flex-col min-w-0" style={{minWidth: '320px'}}>
               {/* Chat Header */}
               <div className="h-14 bg-card border-b border-border flex items-center justify-between px-4 shrink-0">
                 <div className="flex items-center gap-3">
@@ -426,6 +410,9 @@ export default function ChatsPage() {
                     </button>
                     {showMoreMenu && (
                       <div className="absolute right-0 top-10 w-48 bg-card border border-border rounded-xl shadow-lg z-50 py-1">
+                        <button onClick={() => { setShowMoreMenu(false); setShowCustomerDetails(true); }} className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-surface-hover flex items-center gap-2 xl:hidden">
+                          <UserCircle className="w-4 h-4" /> Customer Details
+                        </button>
                         <button onClick={handleMarkUnread} className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-surface-hover flex items-center gap-2">
                           <Bell className="w-4 h-4" /> Mark as Unread
                         </button>
@@ -491,16 +478,14 @@ export default function ChatsPage() {
                 )}
 
                 {/* Company Details Button */}
-                {(isInputFocused || messageInput.trim()) && (
-                  <Button 
-                    variant="outline" 
-                    className="w-full mb-3 text-sm justify-start"
-                    onClick={handleSendCompanyDetails}
-                  >
-                    <Building2 className="h-4 w-4 mr-2" />
-                    Send Company Details
-                  </Button>
-                )}
+                <Button
+                  variant="outline"
+                  className="w-full mb-3 text-sm justify-start"
+                  onMouseDown={e => { e.preventDefault(); handleSendCompanyDetails(); }}
+                >
+                  <Building2 className="h-4 w-4 mr-2" />
+                  Send Company Details
+                </Button>
                 
                 {/* Emoji Picker */}
                 {showEmojiPicker && (
@@ -544,8 +529,6 @@ export default function ChatsPage() {
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
                     onKeyDown={handleKeyPress}
-                    onFocus={() => setIsInputFocused(true)}
-                    onBlur={() => setIsInputFocused(false)}
                     disabled={isRecording}
                     className="flex-1 h-10 bg-muted/50 border-none text-sm"
                   />
@@ -584,13 +567,27 @@ export default function ChatsPage() {
 
           {/* Customer Details Sidebar */}
           {selectedChat && (
-            <div className="w-80 flex flex-col bg-card border-l border-border">
+            <>
+              {/* Overlay for small screens */}
+              {showCustomerDetails && (
+                <div className="fixed inset-0 bg-black/40 z-40 xl:hidden" onClick={() => setShowCustomerDetails(false)} />
+              )}
+              <div className={cn(
+                'flex flex-col bg-card border-l border-border transition-all duration-300',
+                'xl:relative xl:w-80 xl:flex',
+                showCustomerDetails
+                  ? 'fixed right-0 top-0 h-full w-80 z-50 flex'
+                  : 'hidden xl:flex'
+              )}>
               {/* Header */}
-              <div className="p-4 border-b border-border shrink-0">
-                <h2 className="text-sm font-semibold text-foreground">Customer Details</h2>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Conversation information and actions
-                </p>
+              <div className="p-4 border-b border-border shrink-0 flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">Customer Details</h2>
+                  <p className="text-xs text-muted-foreground mt-1">Conversation information and actions</p>
+                </div>
+                <button onClick={() => setShowCustomerDetails(false)} className="xl:hidden p-1 rounded hover:bg-muted transition-colors">
+                  <X className="w-4 h-4 text-muted-foreground" />
+                </button>
               </div>
 
               {/* Scrollable Content */}
@@ -638,36 +635,11 @@ export default function ChatsPage() {
                       <span className="text-muted-foreground font-medium">Channel</span>
                       <p className="text-foreground font-semibold">whatsapp</p>
                     </div>
-                    <div>
-                      <span className="text-muted-foreground font-medium">Started</span>
-                      <p className="text-foreground font-semibold">{selectedChat.created_at ? new Date(selectedChat.created_at).toLocaleDateString() : 'N/A'}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-muted-foreground font-medium">Assigned Agent</span>
-                      <div className="relative mt-1">
-                        <button onClick={() => setShowAssign(!showAssign)} className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg border border-border bg-muted/30 hover:bg-muted transition-colors">
-                          <span className="text-xs font-semibold text-foreground">{selectedChat.assignedAgent || 'Unassigned'}</span>
-                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
-                        </button>
-                        {showAssign && (
-                          <div className="absolute top-8 left-0 right-0 bg-card border border-border rounded-lg shadow-lg z-50 py-1">
-                            <button onClick={() => handleAssignAgent(null, 'Unassigned')} className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors text-muted-foreground">Unassigned</button>
-                            {agents.map(a => (
-                              <button key={a.id} onClick={() => handleAssignAgent(a.id, a.name)} className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors text-foreground">{a.name} <span className="text-muted-foreground">({a.role})</span></button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
                     <div className="col-span-2">
                       <span className="text-muted-foreground font-medium">Label</span>
                       <select value={currentLabel || ''} onChange={e => handleLabelChange(e.target.value || null)} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-border bg-muted/30 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring">
                         {CHAT_LABELS.map(l => <option key={l.key ?? 'none'} value={l.key ?? ''}>{l.label}</option>)}
                       </select>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground font-medium">Updated</span>
-                      <p className="text-foreground font-semibold">{selectedChat.updated_at ? new Date(selectedChat.updated_at).toLocaleDateString() : 'N/A'}</p>
                     </div>
                   </div>
                 </div>
@@ -736,7 +708,8 @@ export default function ChatsPage() {
                   />
                 </div>
               </div>
-            </div>
+              </div>
+            </>
           )}
         </div>
       </div>

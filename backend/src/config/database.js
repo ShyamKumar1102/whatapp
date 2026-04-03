@@ -175,8 +175,8 @@ export const updateConversationLastMessage = async (conversationId, content, inc
 // ══════════════════════════════════════════════════════════════
 const mem = {
   [TABLES.USERS]: [
-    { id: 'user-1', name: 'Admin',   email: 'admin@crm.com',  password_hash: '$2a$10$y70zuWSwg4qbNgVxaZtineRlw7CboCuaRLqQDZFWkZEXdmsl/EY2O', role: 'admin', is_active: true, created_at: new Date().toISOString() },
-    { id: 'user-2', name: 'Agent 1', email: 'agent1@crm.com', password_hash: '$2a$10$y70zuWSwg4qbNgVxaZtineRlw7CboCuaRLqQDZFWkZEXdmsl/EY2O', role: 'agent', is_active: true, created_at: new Date().toISOString() },
+    { id: 'user-1', name: 'Admin',   email: 'admin@crm.com',  password_hash: '$2a$10$WEQzR2XrY7y3/kfZWMb/zerb/A7D1A9sGKMkH7UID5npYCq1iKrnC', role: 'admin', is_active: true, created_at: new Date().toISOString() },
+    { id: 'user-2', name: 'Agent 1', email: 'agent1@crm.com', password_hash: '$2a$10$WEQzR2XrY7y3/kfZWMb/zerb/A7D1A9sGKMkH7UID5npYCq1iKrnC', role: 'agent', is_active: true, created_at: new Date().toISOString() },
   ],
   [TABLES.CONTACTS]: [
     { id: '1', name: 'Rahul Sharma', phone: '+919876543210', tags: ['VIP','Retail'],     is_online: true,  pipeline_status: 'lead',      stage_id: '1', created_at: new Date().toISOString(), updated_at: new Date().toISOString() },

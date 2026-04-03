@@ -210,6 +210,9 @@ export const useStore = create((set, get) => ({
           assignedAgent: conv.assigned_agent || null,
           status: conv.status || 'open',
           label: conv.label || null,
+          pushed_to_admin: conv.pushed_to_admin || false,
+          created_at: conv.created_at || null,
+          updated_at: conv.updated_at || null,
           isTyping: false,
         }));
         set({ chats });
