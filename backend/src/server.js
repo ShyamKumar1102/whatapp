@@ -301,6 +301,11 @@ app.get('/api/messages/chart', protect, async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+app.delete('/api/messages/:messageId', protect, async (req, res) => {
+  await dbUpdate(TABLES.MESSAGES, req.params.messageId, { deleted_for_everyone: true, content: 'This message was deleted', updated_at: new Date().toISOString() });
+  res.json({ success: true, message: 'Message deleted' });
+});
+
 app.get('/api/messages/:chatId', protect, async (req, res) => {
   try {
     const msgs = await dbScan(TABLES.MESSAGES, m => m.chatId === req.params.chatId || m.conversation_id === req.params.chatId);

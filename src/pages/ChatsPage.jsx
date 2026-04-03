@@ -450,7 +450,7 @@ export default function ChatsPage() {
               <div className="flex-1 overflow-y-auto bg-background" style={{ contain: 'layout style paint' }}>
                 <div className="p-4 space-y-3">
                   {chatMessages.map(msg => (
-                    <MessageBubble key={msg.id} message={msg} />
+                    <MessageBubble key={msg.id} message={msg} onDeleteForMe={handleDeleteForMe} onDeleteForEveryone={handleDeleteForEveryone} />
                   ))}
                   {selectedChat.isTyping && (
                     <div className="flex gap-1 px-3 py-2 bg-chat-incoming rounded-xl w-fit border border-border">
