@@ -19,7 +19,10 @@ const apiFetch = async (path, options = {}) => {
   if (res.status === 401) {
     localStorage.removeItem('crm_token');
     localStorage.removeItem('crm_user');
-    window.location.href = '/login';
+    // Only redirect if not on login page
+    if (!window.location.pathname.includes('/login')) {
+      window.location.href = '/login';
+    }
     return { success: false, message: 'Session expired' };
   }
   return res.json();
@@ -147,10 +150,13 @@ export const useStore = create((set, get) => ({
 
   // ── Auth ───────────────────────────────────────────────────
   login: async (email, password) => {
-    const data = await apiFetch('/api/auth/login', {
+    const token = localStorage.getItem('crm_token');
+    const res = await fetch(`${BACKEND}/api/auth/login`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
+    const data = await res.json();
     if (data.success) {
       localStorage.setItem('crm_token', data.token);
       localStorage.setItem('crm_user', JSON.stringify(data.user));
