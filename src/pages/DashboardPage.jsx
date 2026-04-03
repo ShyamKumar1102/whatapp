@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, MessageSquare, MessagesSquare, Megaphone, Clock, RefreshCw, Download } from 'lucide-react';
+import { TrendingUp, TrendingDown, MessageSquare, MessagesSquare, Megaphone, Clock, RefreshCw, Download, Sun, AlertCircle, UserPlus, PhoneCall } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '@/store/useStore';
@@ -20,6 +20,8 @@ export default function DashboardPage() {
   const [activity, setActivity]   = useState([]);
   const [agents, setAgents]       = useState([]);
   const [contacts, setContacts]   = useState([]);
+  const [messages, setMessages]   = useState([]);
+  const [convs, setConvs]         = useState([]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -47,7 +49,9 @@ export default function DashboardPage() {
       if (pipelineData.success)  setPipeline(pipelineData.data?.stages || []);
       if (contactsData.success)  setContacts(contactsData.data || []);
 
-      if (convsData.success && convsData.data?.length && agentsData.success) {
+      // Store raw convs and messages for today's summary
+      if (convsData.success)  setConvs(convsData.data || []);
+
         const agentMap = {};
         agentsData.data.forEach(a => { agentMap[a.id] = { name: a.name, chats: 0 }; });
         convsData.data.forEach(conv => {
@@ -78,6 +82,23 @@ export default function DashboardPage() {
   };
 
   useEffect(() => { fetchAll(); }, []);
+
+  // Today's summary
+  const todayStr = new Date().toDateString();
+  const todaySent     = convs.filter(c => new Date(c.updated_at).toDateString() === todayStr && c.lastMessage).length;
+  const todayContacts = contacts.filter(c => new Date(c.created_at).toDateString() === todayStr).length;
+  const activeChats   = convs.filter(c => c.status === 'open').length;
+  const unreadChats   = convs.filter(c => (c.unreadCount || 0) > 0).length;
+
+  // Follow-up needed — contacts with due/overdue reminders
+  const followUps = reminders
+    .filter(r => r.status === 'pending' && r.due_date && new Date(r.due_date) <= new Date())
+    .map(r => {
+      const contact = contacts.find(c => c.id === r.contact_id);
+      const chat = convs.find(c => c.contact_id === r.contact_id);
+      return { ...r, contactName: contact?.name || 'Unknown', contactPhone: contact?.phone || '', chatId: chat?.id || null };
+    })
+    .slice(0, 5);
 
   // Reminders breakdown
   const now = new Date();
@@ -128,6 +149,64 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Today's Summary */}
+      <div className="bg-card rounded-xl border border-border p-4 sm:p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <Sun className="w-4 h-4 text-yellow-500" />
+          <h2 className="text-sm font-semibold text-foreground">Today's Summary</h2>
+          <span className="text-xs text-muted-foreground ml-auto">{new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'Active Chats',    value: activeChats,   color: 'text-green-500',  bg: 'bg-green-500/10',  icon: MessagesSquare },
+            { label: 'Unread Messages', value: unreadChats,   color: 'text-blue-500',   bg: 'bg-blue-500/10',   icon: MessageSquare },
+            { label: 'New Contacts',    value: todayContacts, color: 'text-purple-500', bg: 'bg-purple-500/10', icon: UserPlus },
+            { label: 'Chats Updated',   value: todaySent,     color: 'text-orange-500', bg: 'bg-orange-500/10', icon: Clock },
+          ].map(item => (
+            <div key={item.label} className={`rounded-xl p-3 ${item.bg} flex items-center gap-3`}>
+              <item.icon className={`w-5 h-5 shrink-0 ${item.color}`} />
+              <div>
+                <p className={`text-xl font-bold ${item.color}`}>{item.value}</p>
+                <p className="text-[10px] text-muted-foreground leading-tight">{item.label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Follow-up Needed */}
+      {followUps.length > 0 && (
+        <div className="bg-card rounded-xl border border-destructive/30 p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-destructive" />
+              <h2 className="text-sm font-semibold text-foreground">Follow-up Needed</h2>
+              <span className="text-[10px] bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded-full font-semibold">{followUps.length}</span>
+            </div>
+            <button onClick={() => navigate('/reminders')} className="text-xs text-primary hover:underline">View all</button>
+          </div>
+          <div className="space-y-2">
+            {followUps.map(f => (
+              <div key={f.id} className="flex items-center gap-3 p-3 rounded-lg bg-destructive/5 border border-destructive/20 hover:bg-destructive/10 cursor-pointer transition-colors"
+                onClick={() => { if (f.chatId) { setSelectedChat(f.chatId); navigate('/chats'); } else navigate('/reminders'); }}>
+                <div className="w-8 h-8 rounded-full bg-destructive/20 flex items-center justify-center shrink-0">
+                  <span className="text-[10px] font-semibold text-destructive">{f.contactName.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase()}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{f.contactName}</p>
+                  <p className="text-xs text-muted-foreground truncate">📌 {f.title}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[10px] text-destructive font-medium">⚠️ Overdue</p>
+                  <p className="text-[10px] text-muted-foreground">{f.due_date ? new Date(f.due_date).toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''}</p>
+                </div>
+                <PhoneCall className="w-4 h-4 text-muted-foreground shrink-0" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
