@@ -20,7 +20,6 @@ export default function DashboardPage() {
   const [activity, setActivity]   = useState([]);
   const [agents, setAgents]       = useState([]);
   const [contacts, setContacts]   = useState([]);
-  const [messages, setMessages]   = useState([]);
   const [convs, setConvs]         = useState([]);
 
   const fetchAll = async () => {
@@ -48,11 +47,9 @@ export default function DashboardPage() {
       if (remindersData.success) setReminders(remindersData.data || []);
       if (pipelineData.success)  setPipeline(pipelineData.data?.stages || []);
       if (contactsData.success)  setContacts(contactsData.data || []);
+      if (convsData.success)       setConvs(convsData.data || []);
 
-      // Store raw convs and messages for today's summary
-      if (convsData.success)  setConvs(convsData.data || []);
-
-        const agentMap = {};
+      if (convsData.success && convsData.data?.length && agentsData.success) {
         agentsData.data.forEach(a => { agentMap[a.id] = { name: a.name, chats: 0 }; });
         convsData.data.forEach(conv => {
           const aid = conv.assigned_agent;
