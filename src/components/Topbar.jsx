@@ -36,8 +36,12 @@ export default function Topbar() {
 
   const handleNotifClick = (n) => {
     markRead(n.id);
-    if (n.chatId) { setSelectedChat(n.chatId); navigate('/chats'); }
     setShowNotif(false);
+    if (n.chatId) { setSelectedChat(n.chatId); navigate('/chats'); }
+    else if (n.text?.toLowerCase().includes('reminder')) navigate('/reminders');
+    else if (n.text?.toLowerCase().includes('assign')) navigate('/chats');
+    else if (n.text?.toLowerCase().includes('campaign')) navigate('/campaigns');
+    else navigate('/');
   };
 
   return (
@@ -90,7 +94,9 @@ export default function Topbar() {
             {unread > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />}
           </button>
           {showNotif && (
-            <div className="absolute right-0 top-11 w-[calc(100vw-2rem)] sm:w-80 max-w-sm bg-card border border-border rounded-xl shadow-lg z-50">
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowNotif(false)} />
+              <div className="fixed top-14 left-2 right-2 sm:absolute sm:left-auto sm:right-0 sm:top-11 sm:w-80 sm:fixed-none bg-card border border-border rounded-xl shadow-lg z-50">
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <span className="text-sm font-semibold text-foreground">
                   Notifications {unread > 0 && <span className="ml-1 text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">{unread}</span>}
@@ -119,7 +125,7 @@ export default function Topbar() {
                   </div>
                 ))}
               </div>
-            </div>
+            </>
           )}
         </div>
 
