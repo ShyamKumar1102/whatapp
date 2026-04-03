@@ -102,9 +102,9 @@ export default function ImportExport() {
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
-        <p className="text-sm text-muted-foreground mt-1">
-          Bulk import contacts from CSV or export all contacts
-        </p>
+      <div>
+        <h1 className="text-xl font-semibold text-foreground">Import / Export</h1>
+        <p className="text-sm text-muted-foreground mt-1">Bulk import contacts from CSV or export all contacts</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
