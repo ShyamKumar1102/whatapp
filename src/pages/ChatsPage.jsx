@@ -456,7 +456,7 @@ export default function ChatsPage() {
               )}
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto bg-background" style={{ contain: 'layout style paint' }}>
+              <div className="flex-1 overflow-y-auto bg-background" >
                 <div className="p-4 space-y-3">
                   {chatMessages.map(msg => (
                     <MessageBubble key={msg.id} message={msg} onDeleteForMe={handleDeleteForMe} onDeleteForEveryone={handleDeleteForEveryone} />
@@ -594,7 +594,7 @@ export default function ChatsPage() {
               </div>
 
               {/* Scrollable Content */}
-              <div className="flex-1 overflow-y-auto" style={{ contain: 'layout style paint' }}>
+              <div className="flex-1 overflow-y-auto" >
                 {/* Customer Card */}
                 <div className="m-4 rounded-xl border bg-background p-4">
                   <div className="flex items-start gap-3 mb-3">
