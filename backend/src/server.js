@@ -228,7 +228,7 @@ app.post('/webhook', async (req, res) => {
         timestamp:       new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         created_at:      new Date().toISOString(),
       };
-      await dbPut(TABLES.MESSAGES, message);`n  await updateConversationLastMessage(chatId, content, false);
+      await dbPut(TABLES.MESSAGES, message);
       io.emit('new_message', { ...message, contact, chatId: conv.id });
       console.log(`📨 [${phone}] ${name}: ${content}`);
     }
@@ -259,7 +259,7 @@ app.post('/api/messages/send', protect, async (req, res) => {
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     created_at: new Date().toISOString(),
   };
-  await dbPut(TABLES.MESSAGES, message);`n  await updateConversationLastMessage(chatId, content, false);
+  await dbPut(TABLES.MESSAGES, message);
 
   if (process.env.META_ACCESS_TOKEN && process.env.META_PHONE_NUMBER_ID && contact) {
     try {
