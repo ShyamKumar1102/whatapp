@@ -166,37 +166,38 @@ export default function CampaignsPage() {
             const sent     = campaign.sent_count    || campaign.sentCount    || 0;
             const progress = total > 0 ? (sent / total) * 100 : 0;
             return (
-              <div key={campaign.id} className="bg-card rounded-xl border border-border p-5 hover:shadow-sm transition-shadow">
-                <div className="flex items-start justify-between gap-3">
+              <div key={campaign.id} className="bg-card rounded-xl border border-border p-4 hover:shadow-sm transition-shadow">
+                <div className="flex items-start gap-3">
                   {campaign.image_url && (
-                    <img src={campaign.image_url} alt="campaign" className="w-14 h-14 rounded-lg object-cover shrink-0 border border-border" />
+                    <img src={campaign.image_url} alt="campaign" className="w-12 h-12 rounded-lg object-cover shrink-0 border border-border" />
                   )}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold text-foreground">{campaign.name}</h3>
-                      <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full', status.className)}>{status.label}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold text-foreground truncate">{campaign.name}</h3>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {total} contacts · {campaign.created_at ? new Date(campaign.created_at).toLocaleDateString() : ''}
+                        </p>
+                      </div>
+                      <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full shrink-0', status.className)}>{status.label}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {total} contacts · Created {campaign.created_at ? new Date(campaign.created_at).toLocaleDateString() : campaign.createdAt}
-                      {(campaign.scheduled_at || campaign.scheduledAt) && ` · Scheduled for ${campaign.scheduled_at || campaign.scheduledAt}`}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {isAdmin && campaign.status === 'draft' && (
-                      <Button size="sm" variant="default" className="gap-1.5 text-xs" onClick={() => handleConfirmSend(campaign)}>
-                        <Send className="w-3 h-3" /> Send
-                      </Button>
-                    )}
-                    {isAdmin && campaign.status !== 'sent' && (
-                      <Button size="sm" variant="outline" className="gap-1.5 text-xs" onClick={() => openEdit(campaign)}>
-                        <Edit className="w-3 h-3" /> Edit
-                      </Button>
-                    )}
-                    {isAdmin && (
-                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => handleConfirmDelete(campaign.id)}>
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-1 mt-2">
+                      {isAdmin && campaign.status === 'draft' && (
+                        <Button size="sm" variant="default" className="h-7 px-2 text-xs gap-1" onClick={() => handleConfirmSend(campaign)}>
+                          <Send className="w-3 h-3" /> Send
+                        </Button>
+                      )}
+                      {isAdmin && campaign.status !== 'sent' && (
+                        <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={() => openEdit(campaign)}>
+                          <Edit className="w-3 h-3" /> Edit
+                        </Button>
+                      )}
+                      {isAdmin && (
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleConfirmDelete(campaign.id)}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 {campaign.status === 'sent' && (

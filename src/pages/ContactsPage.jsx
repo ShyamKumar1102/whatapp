@@ -130,17 +130,19 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input placeholder="Search contacts..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9 bg-muted/50 border-none text-sm" />
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {allTags.map(tag => (
-            <Button key={tag} variant={filterTag === tag ? 'default' : 'outline'} size="sm" onClick={() => setFilterTag(filterTag === tag ? '' : tag)} className="text-xs">{tag}</Button>
-          ))}
-          {filterTag && <Button variant="ghost" size="sm" onClick={() => setFilterTag('')}><X className="w-3 h-3" /></Button>}
-        </div>
+        {allTags.length > 0 && (
+          <div className="flex gap-1.5 flex-wrap">
+            {allTags.map(tag => (
+              <Button key={tag} variant={filterTag === tag ? 'default' : 'outline'} size="sm" onClick={() => setFilterTag(filterTag === tag ? '' : tag)} className="text-xs h-7 px-2">{tag}</Button>
+            ))}
+            {filterTag && <Button variant="ghost" size="sm" onClick={() => setFilterTag('')} className="h-7 w-7 p-0"><X className="w-3 h-3" /></Button>}
+          </div>
+        )}
       </div>
 
       {/* Mobile card view */}

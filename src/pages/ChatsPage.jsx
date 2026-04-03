@@ -313,11 +313,11 @@ export default function ChatsPage() {
     <div className="flex flex-col h-screen">
       <ConfirmDialog open={confirmBlock} title="Block Contact" description={`Block ${selectedChat?.contact.name}? They won't be able to send messages.`} confirmLabel="Block" onConfirm={() => { toast.success(`${selectedChat?.contact.name} blocked.`); }} onCancel={() => setConfirmBlock(false)} />
       <ConfirmDialog open={confirmClear} title="Clear Chat" description="All messages in this chat will be cleared." confirmLabel="Clear" onConfirm={() => { toast.success('Chat cleared.'); }} onCancel={() => setConfirmClear(false)} />
-      <div className="p-4 sm:p-6 pb-0 shrink-0">
-        <h1 className="text-xl font-semibold text-foreground">Chats</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage your WhatsApp conversations
-        </p>
+      <div className="px-3 sm:px-6 pt-3 sm:pt-4 pb-0 shrink-0">
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-lg sm:text-xl font-semibold text-foreground">Chats</h1>
+          <p className="text-xs text-muted-foreground hidden sm:block">Manage your WhatsApp conversations</p>
+        </div>
         <div className="flex gap-2 mt-3 overflow-x-auto pb-1 scrollbar-thin">
           {LABEL_FILTERS.map(f => (
             <button
@@ -336,11 +336,11 @@ export default function ChatsPage() {
         </div>
       </div>
 
-      <div className="flex-1 p-3 sm:p-6 pt-3 sm:pt-6 min-h-0">
+      <div className="flex-1 p-3 sm:p-4 pt-3 sm:pt-4 min-h-0">
         <div className="flex h-full rounded-xl border bg-card overflow-hidden min-w-0">
           {/* Chat List */}
           <div className={cn(
-            'w-64 lg:w-72 border-r border-border flex flex-col bg-card shrink-0',
+            'w-full md:w-64 lg:w-72 border-r border-border flex flex-col bg-card shrink-0',
             selectedChatId && 'hidden md:flex'
           )}>
             <div className="p-3 border-b border-border shrink-0">
@@ -366,7 +366,7 @@ export default function ChatsPage() {
             </div>
           </div>
 
-          {/* Chat Window */}
+          {/* Chat Window — hidden on small desktop if no chat selected */}
           {selectedChat ? (
             <div className="flex-1 flex flex-col min-w-0">
               {/* Chat Header */}
@@ -556,7 +556,7 @@ export default function ChatsPage() {
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-background">
+            <div className="hidden md:flex flex-1 flex-col items-center justify-center text-center p-8 bg-background">
               <div className="w-16 h-16 rounded-2xl bg-accent flex items-center justify-center mb-4">
                 <MessageSquare className="w-8 h-8 text-accent-foreground" />
               </div>
