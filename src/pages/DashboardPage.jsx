@@ -173,12 +173,12 @@ export default function DashboardPage() {
       </div>
 
       {/* Payment Summary */}
-      {reminders.some(r => ['payment','invoice','quotation'].includes(r.type)) && (() => {
+      {(() => {
         const pendingR = reminders.filter(r => r.status !== 'completed');
-        const toCollect   = pendingR.filter(r => ['payment','invoice'].includes(r.type)).reduce((s, r) => s + (Number(r.amount) || 0), 0);
-        const quotations  = pendingR.filter(r => r.type === 'quotation').reduce((s, r) => s + (Number(r.amount) || 0), 0);
-        const overduePay  = pendingR.filter(r => ['payment','invoice'].includes(r.type) && r.due_date && new Date(r.due_date) <= new Date()).length;
-        const doneMonth   = reminders.filter(r => r.status === 'completed' && new Date(r.updated_at || r.created_at).getMonth() === new Date().getMonth()).length;
+        const toCollect  = pendingR.filter(r => ['payment','invoice'].includes(r.type)).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+        const quotations = pendingR.filter(r => r.type === 'quotation').reduce((s, r) => s + (Number(r.amount) || 0), 0);
+        const overduePay = pendingR.filter(r => ['payment','invoice'].includes(r.type) && r.due_date && new Date(r.due_date) <= new Date()).length;
+        const doneMonth  = reminders.filter(r => r.status === 'completed' && new Date(r.updated_at || r.created_at).getMonth() === new Date().getMonth()).length;
         return (
           <div className="bg-card rounded-xl border border-border p-4 sm:p-5">
             <div className="flex items-center gap-2 mb-4">
@@ -188,12 +188,12 @@ export default function DashboardPage() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: 'To Collect',      value: `₹${toCollect.toLocaleString('en-IN')}`,  icon: IndianRupee, color: 'text-green-600',  bg: 'bg-green-500/10',  onClick: () => navigate('/reminders') },
-                { label: 'Quotations',      value: `₹${quotations.toLocaleString('en-IN')}`, icon: FileText,    color: 'text-purple-600', bg: 'bg-purple-500/10', onClick: () => navigate('/reminders') },
-                { label: 'Overdue',         value: overduePay,                                 icon: AlertCircle, color: 'text-destructive', bg: 'bg-destructive/10', onClick: () => navigate('/reminders') },
-                { label: 'Done This Month', value: doneMonth,                                  icon: Receipt,     color: 'text-blue-600',   bg: 'bg-blue-500/10',   onClick: () => navigate('/reminders') },
+                { label: 'To Collect',      value: `₹${toCollect.toLocaleString('en-IN')}`,  icon: IndianRupee, color: 'text-green-600',  bg: 'bg-green-500/10' },
+                { label: 'Quotations',      value: `₹${quotations.toLocaleString('en-IN')}`, icon: FileText,    color: 'text-purple-600', bg: 'bg-purple-500/10' },
+                { label: 'Overdue',         value: overduePay,                                icon: AlertCircle, color: 'text-destructive', bg: 'bg-destructive/10' },
+                { label: 'Done This Month', value: doneMonth,                                 icon: Receipt,     color: 'text-blue-600',   bg: 'bg-blue-500/10' },
               ].map(item => (
-                <button key={item.label} onClick={item.onClick} className={`rounded-xl p-3 flex items-center gap-3 text-left transition-all hover:scale-[1.02] cursor-pointer ${item.bg}`}>
+                <button key={item.label} onClick={() => navigate('/reminders')} className={`rounded-xl p-3 flex items-center gap-3 text-left transition-all hover:scale-[1.02] cursor-pointer ${item.bg}`}>
                   <item.icon className={`w-5 h-5 shrink-0 ${item.color}`} />
                   <div>
                     <p className={`text-lg font-bold leading-tight ${item.color}`}>{item.value}</p>
