@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Send, Paperclip, Smile, Phone, Video, MoreVertical, MessageSquare, Building2, Mic, MicOff, UserCircle, Ban, Trash2, X, Zap, ChevronDown, Bell } from 'lucide-react';
+import { Search, Send, Paperclip, Smile, Phone, Video, MoreVertical, MessageSquare, Building2, Mic, MicOff, UserCircle, Ban, Trash2, X, Zap, ChevronDown, Bell, IndianRupee, FileText, Receipt } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +49,8 @@ export default function ChatsPage() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [reminderTitle, setReminderTitle] = useState('');
   const [reminderDate, setReminderDate] = useState('');
+  const [reminderType, setReminderType] = useState('general');
+  const [reminderAmount, setReminderAmount] = useState('');
   const [contactReminders, setContactReminders] = useState([]);
 
   const QUICK_REPLIES = [
@@ -112,6 +114,8 @@ export default function ChatsPage() {
     setContactReminders([]);
     setReminderTitle('');
     setReminderDate('');
+    setReminderType('general');
+    setReminderAmount('');
   }, [selectedChatId, selectedChat?.label]);
 
   // Load notes when chat changes
@@ -240,12 +244,14 @@ export default function ChatsPage() {
     try {
       await fetch(`${BACKEND}/api/reminders`, {
         method: 'POST', headers: getAuthHeaders(),
-        body: JSON.stringify({ title: reminderTitle, due_date: reminderDate || null, contact_id: selectedChat?.contact?.id || null }),
+        body: JSON.stringify({ title: reminderTitle, due_date: reminderDate || null, contact_id: selectedChat?.contact?.id || null, type: reminderType, amount: reminderAmount ? parseFloat(reminderAmount) : null }),
       });
     } catch { /* ignore */ }
     setShowReminderForm(false);
     setReminderTitle('');
     setReminderDate('');
+    setReminderType('general');
+    setReminderAmount('');
     toast.success('Reminder set!');
     // Reload contact reminders
     if (selectedChat?.contact?.id) {
@@ -477,15 +483,34 @@ export default function ChatsPage() {
                   </div>
                 )}
 
-                {/* Company Details Button */}
-                <Button
-                  variant="outline"
-                  className="w-full mb-3 text-sm justify-start"
-                  onMouseDown={e => { e.preventDefault(); handleSendCompanyDetails(); }}
-                >
-                  <Building2 className="h-4 w-4 mr-2" />
-                  Send Company Details
-                </Button>
+                {/* Company Details + Payment Reminder Buttons */}
+                <div className="flex gap-2 mb-3">
+                  <Button
+                    variant="outline"
+                    className="flex-1 text-sm justify-start"
+                    onMouseDown={e => { e.preventDefault(); handleSendCompanyDetails(); }}
+                  >
+                    <Building2 className="h-4 w-4 mr-2" />
+                    Company Details
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 text-sm justify-start text-green-600 border-green-200 hover:bg-green-500/10"
+                    onMouseDown={e => {
+                      e.preventDefault();
+                      if (!selectedChatId) return;
+                      const payReminders = contactReminders.filter(r => ['payment','invoice'].includes(r.type));
+                      const amountStr = payReminders.length > 0
+                        ? ` of ₹${payReminders.reduce((s,r) => s + (Number(r.amount)||0), 0).toLocaleString('en-IN')}`
+                        : '';
+                      const msg = `Hi ${selectedChat?.contact?.name?.split(' ')[0] || 'there'}, this is a gentle reminder regarding your pending payment${amountStr}. Kindly arrange the payment at your earliest convenience. Thank you! 🙏`;
+                      setMessageInput(msg);
+                    }}
+                  >
+                    <IndianRupee className="h-4 w-4 mr-2" />
+                    Payment Reminder
+                  </Button>
+                </div>
                 
                 {/* Emoji Picker */}
                 {showEmojiPicker && (
@@ -658,6 +683,9 @@ export default function ChatsPage() {
                     <div className="space-y-2 mb-3">
                       {contactReminders.map(r => {
                         const isOverdue = r.due_date && new Date(r.due_date) < new Date();
+                        const typeIconMap = { quotation: FileText, invoice: Receipt, payment: IndianRupee };
+                        const typeColorMap = { quotation: 'text-purple-500', invoice: 'text-orange-500', payment: 'text-green-500' };
+                        const TypeIcon = typeIconMap[r.type];
                         return (
                           <div key={r.id} className="flex items-start gap-2 p-2 rounded-lg bg-muted/40 border border-border/50">
                             <button
@@ -670,7 +698,11 @@ export default function ChatsPage() {
                               title="Mark complete"
                             />
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-foreground truncate">{r.title}</p>
+                              <div className="flex items-center gap-1">
+                                {TypeIcon && <TypeIcon className={`w-3 h-3 shrink-0 ${typeColorMap[r.type]}`} />}
+                                <p className="text-xs font-medium text-foreground truncate">{r.title}</p>
+                              </div>
+                              {r.amount && <p className={`text-[10px] font-semibold mt-0.5 ${typeColorMap[r.type] || 'text-foreground'}`}>₹{Number(r.amount).toLocaleString('en-IN')}</p>}
                               {r.due_date && (
                                 <p className={`text-[10px] mt-0.5 ${isOverdue ? 'text-destructive' : 'text-muted-foreground'}`}>
                                   {isOverdue ? '⚠️ Overdue · ' : '🕐 '}{new Date(r.due_date).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -689,11 +721,22 @@ export default function ChatsPage() {
 
                   {showReminderForm && (
                     <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {[{k:'general',l:'General'},{k:'quotation',l:'📄 Quotation'},{k:'invoice',l:'🧾 Invoice'},{k:'payment',l:'💰 Payment'}].map(t => (
+                          <button key={t.k} type="button" onClick={() => setReminderType(t.k)}
+                            className={`px-2 py-1.5 rounded-lg border text-[10px] font-medium transition-all ${
+                              reminderType === t.k ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted/40 text-muted-foreground border-border hover:bg-muted'
+                            }`}>{t.l}</button>
+                        ))}
+                      </div>
                       <Input placeholder="Reminder title..." value={reminderTitle} onChange={e => setReminderTitle(e.target.value)} className="h-8 text-xs" />
+                      {['quotation','invoice','payment'].includes(reminderType) && (
+                        <Input type="number" placeholder="Amount (₹)" value={reminderAmount} onChange={e => setReminderAmount(e.target.value)} className="h-8 text-xs" min="0" step="0.01" />
+                      )}
                       <Input type="datetime-local" value={reminderDate} onChange={e => setReminderDate(e.target.value)} className="h-8 text-xs" />
                       <div className="flex gap-2">
                         <Button size="sm" className="flex-1 h-7 text-xs" onClick={handleAddReminder} disabled={!reminderTitle.trim()}>Save</Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowReminderForm(false); setReminderTitle(''); setReminderDate(''); }}>Cancel</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setShowReminderForm(false); setReminderTitle(''); setReminderDate(''); setReminderType('general'); setReminderAmount(''); }}>Cancel</Button>
                       </div>
                     </div>
                   )}
