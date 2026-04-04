@@ -8,9 +8,9 @@ export const getReminders = async (req, res) => {
 };
 
 export const createReminder = async (req, res) => {
-  const { title, description, due_date, priority, contact_id } = req.body;
+  const { title, description, due_date, priority, contact_id, type, amount } = req.body;
   if (!title) return res.status(400).json({ success: false, message: 'Title is required' });
-  const reminder = { id: generateId(), title, description: description || '', due_date: due_date || null, priority: priority || 'medium', status: 'pending', contact_id: contact_id || null, agent_id: req.user?.id || 'unknown', created_at: new Date().toISOString() };
+  const reminder = { id: generateId(), title, description: description || '', due_date: due_date || null, priority: priority || 'medium', status: 'pending', contact_id: contact_id || null, agent_id: req.user?.id || 'unknown', type: type || 'general', amount: amount || null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
   await dbPut(TABLES.REMINDERS, reminder);
   res.status(201).json({ success: true, data: reminder, message: 'Reminder created successfully' });
 };
