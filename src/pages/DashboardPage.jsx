@@ -297,28 +297,52 @@ export default function DashboardPage() {
             <h2 className="text-sm font-semibold text-foreground">Reminders</h2>
             <button onClick={() => navigate('/reminders')} className="text-xs text-primary hover:underline">View all</button>
           </div>
-          <div className="space-y-3">
+          {/* Status breakdown */}
+          <div className="space-y-2.5 mb-4">
             {[
-              { label: 'Pending',   count: reminderStats.pending,   color: 'bg-blue-500',   text: 'text-blue-500' },
-              { label: 'Overdue',   count: reminderStats.overdue,   color: 'bg-destructive', text: 'text-destructive' },
-              { label: 'Completed', count: reminderStats.completed, color: 'bg-green-500',  text: 'text-green-500' },
+              { label: 'Pending',   count: reminderStats.pending,   color: 'bg-blue-500',    text: 'text-blue-500' },
+              { label: 'Overdue',   count: reminderStats.overdue,   color: 'bg-destructive',  text: 'text-destructive' },
+              { label: 'Completed', count: reminderStats.completed, color: 'bg-green-500',   text: 'text-green-500' },
             ].map(r => {
               const total = reminders.length || 1;
               return (
                 <div key={r.label} className="flex items-center gap-3">
                   <div className={`w-2 h-2 rounded-full shrink-0 ${r.color}`} />
-                  <span className="text-sm text-foreground flex-1">{r.label}</span>
-                  <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <span className="text-xs text-foreground flex-1">{r.label}</span>
+                  <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
                     <div className={`h-full rounded-full ${r.color}`} style={{ width: `${(r.count / total) * 100}%` }} />
                   </div>
-                  <span className={`text-sm font-semibold w-5 text-right ${r.text}`}>{r.count}</span>
+                  <span className={`text-xs font-semibold w-4 text-right ${r.text}`}>{r.count}</span>
                 </div>
               );
             })}
-            {reminders.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">No reminders yet</p>}
+            {reminders.length === 0 && <p className="text-xs text-muted-foreground text-center py-2">No reminders yet</p>}
+          </div>
+          {/* Type breakdown */}
+          <div className="border-t border-border pt-3 space-y-2">
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">By Type</p>
+            {[
+              { label: 'Quotation', type: 'quotation', color: 'bg-purple-500', text: 'text-purple-600' },
+              { label: 'Invoice',   type: 'invoice',   color: 'bg-orange-500', text: 'text-orange-600' },
+              { label: 'Payment',   type: 'payment',   color: 'bg-green-500',  text: 'text-green-600' },
+              { label: 'General',   type: 'general',   color: 'bg-blue-400',   text: 'text-blue-500' },
+            ].map(r => {
+              const count = reminders.filter(x => x.status !== 'completed' && (x.type || 'general') === r.type).length;
+              const total = reminders.filter(x => x.status !== 'completed').length || 1;
+              return (
+                <button key={r.type} onClick={() => navigate('/reminders')} className="w-full flex items-center gap-3 hover:bg-muted/50 rounded-lg px-1 py-0.5 transition-colors">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${r.color}`} />
+                  <span className="text-xs text-foreground flex-1 text-left">{r.label}</span>
+                  <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${r.color}`} style={{ width: `${(count / total) * 100}%` }} />
+                  </div>
+                  <span className={`text-xs font-semibold w-4 text-right ${r.text}`}>{count}</span>
+                </button>
+              );
+            })}
           </div>
           {reminderStats.overdue > 0 && (
-            <div className="mt-4 p-2.5 rounded-lg bg-destructive/10 border border-destructive/20">
+            <div className="mt-3 p-2.5 rounded-lg bg-destructive/10 border border-destructive/20">
               <p className="text-xs text-destructive font-medium">⚠️ {reminderStats.overdue} overdue reminder{reminderStats.overdue > 1 ? 's' : ''}</p>
             </div>
           )}
