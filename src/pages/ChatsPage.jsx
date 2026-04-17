@@ -494,7 +494,7 @@ export default function ChatsPage() {
                   </div>
                 )}
 
-                {/* Company Details + Payment Reminder + AI Takeover Buttons */}
+                {/* Company Details + Payment Reminder Buttons */}
                 <div className="flex gap-2 mb-3">
                   <Button
                     variant="outline"
@@ -522,17 +522,6 @@ export default function ChatsPage() {
                     Payment Reminder
                   </Button>
                 </div>
-                {/* AI Takeover */}
-                {selectedChat?.ai_disabled ? (
-                  <Button variant="outline" size="sm" className="w-full mb-3 text-xs text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => handleTakeover(false)}>
-                    🤖 Re-enable AI for this chat
-                  </Button>
-                ) : (
-                  <Button variant="outline" size="sm" className="w-full mb-3 text-xs text-orange-600 border-orange-200 hover:bg-orange-50" onClick={() => handleTakeover(true)}>
-                    👨 Take Over from AI
-                  </Button>
-                )}
-                
                 {/* Emoji Picker */}
                 {showEmojiPicker && (
                   <div className="mb-3 p-3 bg-background border border-border rounded-lg">
@@ -671,6 +660,17 @@ export default function ChatsPage() {
                   >
                     Push to Admin
                   </Button>
+
+                  {/* AI Takeover Button */}
+                  {selectedChat?.ai_disabled ? (
+                    <Button variant="outline" className="w-full mt-2 text-xs text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => handleTakeover(false)}>
+                      🤖 Re-enable AI
+                    </Button>
+                  ) : (
+                    <Button variant="outline" className="w-full mt-2 text-xs text-red-600 border-red-200 hover:bg-red-50" onClick={() => handleTakeover(true)}>
+                      👨 Take Over from AI
+                    </Button>
+                  )}
                 </div>
 
                 {/* Conversation Metadata */}
