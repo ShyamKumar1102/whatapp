@@ -4,7 +4,8 @@ import { Check, CheckCheck, Trash2, Copy, ChevronDown } from 'lucide-react';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 export default function MessageBubble({ message, onDeleteForMe, onDeleteForEveryone }) {
-  const isOutgoing = message.sender === 'user' || message.sender === 'agent';
+  const isOutgoing = message.sender === 'user' || message.sender === 'agent' || message.sender === 'ai';
+  const isAI = message.sender === 'ai';
   const [showMenu, setShowMenu] = useState(false);
   const [confirmType, setConfirmType] = useState(null); // 'me' | 'everyone'
   const menuRef = useRef(null);
@@ -57,7 +58,10 @@ export default function MessageBubble({ message, onDeleteForMe, onDeleteForEvery
                 {isOutgoing ? 'You deleted this message' : 'This message was deleted'}
               </p>
             ) : (
-              <p className="text-foreground leading-relaxed whitespace-pre-wrap">{message.content}</p>
+              <>
+                {isAI && <p className="text-[10px] text-muted-foreground mb-1">🤖 AI</p>}
+                <p className="text-foreground leading-relaxed whitespace-pre-wrap">{message.content}</p>
+              </>
             )}
             <div className={cn('flex items-center gap-1 mt-1', isOutgoing ? 'justify-end' : 'justify-start')}>
               <span className="text-[10px] text-muted-foreground">{message.timestamp}</span>

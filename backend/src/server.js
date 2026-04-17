@@ -15,6 +15,105 @@ import { register, login, getMe, protect } from './middleware/auth.js';
 dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// ── S3 company knowledge loader (Excel + PDF) ────────────────
+let companyContext = 'You are a helpful customer support agent. Be polite and professional.';
+
+async function loadCompanyContext() {
+  try {
+    const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
+    const { default: XLSX }   = await import('xlsx');
+    const { default: pdf }    = await import('pdf-parse');
+    const { writeFileSync, unlinkSync } = await import('fs');
+    const { join }            = await import('path');
+    const { tmpdir }          = await import('os');
+
+    const s3 = new S3Client({
+      region: process.env.S3_REGION || process.env.AWS_REGION,
+      credentials: {
+        accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      },
+    });
+
+    const bucket = process.env.S3_BUCKET_NAME;
+    let context  = '';
+
+    // ── Read Excel files ──────────────────────────────────────
+    const excelKeys = (process.env.S3_EXCEL_KEYS || process.env.S3_FILE_KEY || '').split(',').map(k => k.trim()).filter(k => k.endsWith('.xlsx') || k.endsWith('.xls'));
+    for (const key of excelKeys) {
+      try {
+        const res      = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+        const chunks   = [];
+        for await (const chunk of res.Body) chunks.push(chunk);
+        const buffer   = Buffer.concat(chunks);
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        for (const sheetName of workbook.SheetNames) {
+          const sheet = workbook.Sheets[sheetName];
+          context += `\n\nEXCEL FILE: ${key} — Sheet: ${sheetName}\n`;
+          context += XLSX.utils.sheet_to_csv(sheet);
+        }
+        console.log(`✅ Excel loaded from S3: ${key}`);
+      } catch (err) { console.warn(`⚠️  Excel load failed (${key}):`, err.message); }
+    }
+
+    // ── Read PDF files ────────────────────────────────────────
+    const pdfKeys = (process.env.S3_PDF_KEYS || process.env.S3_FILE_KEY || '').split(',').map(k => k.trim()).filter(k => k.endsWith('.pdf'));
+    for (const key of pdfKeys) {
+      try {
+        const res    = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+        const chunks = [];
+        for await (const chunk of res.Body) chunks.push(chunk);
+        const buffer = Buffer.concat(chunks);
+        const data   = await pdf(buffer);
+        context += `\n\nPDF FILE: ${key}\n${data.text}`;
+        console.log(`✅ PDF loaded from S3: ${key}`);
+      } catch (err) { console.warn(`⚠️  PDF load failed (${key}):`, err.message); }
+    }
+
+    // ── Read plain text files ─────────────────────────────────
+    const txtKeys = (process.env.S3_FILE_KEY || '').split(',').map(k => k.trim()).filter(k => !k.endsWith('.xlsx') && !k.endsWith('.xls') && !k.endsWith('.pdf'));
+    for (const key of txtKeys) {
+      try {
+        const res  = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+        const text = await res.Body.transformToString();
+        context   += `\n\nFILE: ${key}\n${text}`;
+        console.log(`✅ Text file loaded from S3: ${key}`);
+      } catch (err) { console.warn(`⚠️  Text load failed (${key}):`, err.message); }
+    }
+
+    if (context.trim()) {
+      companyContext = `You are a helpful customer support agent. Answer using the company data below. Be polite and professional.\n\nCOMPANY DATA:\n${context}`;
+      console.log('✅ Company context ready from S3');
+    }
+  } catch (err) {
+    console.warn('⚠️  Could not load S3 company context:', err.message);
+  }
+}
+
+if (process.env.S3_BUCKET_NAME) loadCompanyContext();
+
+// ── ChatGPT auto-reply ────────────────────────────────────────
+async function getAIReply(chatHistory) {
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: companyContext },
+        ...chatHistory,
+      ],
+      max_tokens: 300,
+    }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.choices[0].message.content.trim();
+}
 const upload = multer({
   dest: path.join(__dirname, '../../uploads/'),
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -186,9 +285,14 @@ app.post('/webhook', async (req, res) => {
     if (!value) return;
 
     if (value.messages?.[0]) {
-      const metaMsg = value.messages[0];
-      const phone   = metaMsg.from;
-      const name    = value.contacts?.[0]?.profile?.name || phone;
+      const metaMsg    = value.messages[0];
+      const phone      = metaMsg.from;
+      const name       = value.contacts?.[0]?.profile?.name || phone;
+      const message_id = metaMsg.id;
+
+      // Duplicate prevention
+      const existing = await dbScan(TABLES.MESSAGES, m => m.meta_message_id === message_id);
+      if (existing.length) return console.log(`⚠️  Duplicate message skipped: ${message_id}`);
       const contentMap = {
         text:     () => metaMsg.text?.body || '',
         image:    () => '📷 Image',
@@ -237,6 +341,51 @@ app.post('/webhook', async (req, res) => {
         conv.unread_count = (conv.unread_count || 0) + 1;
       }
 
+      // ChatGPT auto-reply
+      if (process.env.OPENAI_API_KEY && !conv.ai_disabled && metaMsg.type === 'text') {
+        try {
+          const history = await getMessagesByConversation(conv.id);
+          const chatHistory = history.slice(-10).map(m => ({
+            role: m.sender === 'contact' ? 'user' : 'assistant',
+            content: m.content,
+          }));
+          chatHistory.push({ role: 'user', content });
+          const aiText = await getAIReply(chatHistory);
+
+          const aiMessage = {
+            id:              generateId(),
+            chatId:          conv.id,
+            conversation_id: conv.id,
+            contact_phone:   phone,
+            content:         aiText,
+            type:            'text',
+            sender:          'ai',
+            ai_generated:    true,
+            status:          'sent',
+            timestamp:       new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            created_at:      new Date().toISOString(),
+          };
+          await dbPut(TABLES.MESSAGES, aiMessage);
+
+          if (process.env.META_ACCESS_TOKEN && process.env.META_PHONE_NUMBER_ID) {
+            const metaRes = await fetch(`https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`, {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: phone, type: 'text', text: { body: aiText } }),
+            });
+            const metaData = await metaRes.json();
+            if (metaData.messages?.[0]?.id)
+              await dbUpdate(TABLES.MESSAGES, aiMessage.id, { meta_message_id: metaData.messages[0].id });
+          }
+
+          await updateConversationLastMessage(conv.id, aiText);
+          io.emit('new_message', { ...aiMessage, contact, chatId: conv.id });
+          console.log(`🤖 AI replied to [${phone}]: ${aiText.slice(0, 60)}...`);
+        } catch (err) {
+          console.error('ChatGPT error:', err.message);
+        }
+      }
+
       // Save message — stored with conversation_id + contact_phone for per-customer queries
       const message = {
         id:              generateId(),
@@ -265,6 +414,16 @@ app.post('/webhook', async (req, res) => {
       }
     }
   } catch (err) { console.error('Webhook error:', err.message); }
+});
+
+// ── AI Takeover ──────────────────────────────────────────────
+app.patch('/api/conversations/:id/takeover', protect, async (req, res) => {
+  try {
+    const { disable } = req.body; // true = agent takes over, false = re-enable AI
+    await dbUpdate(TABLES.CONVERSATIONS, req.params.id, { ai_disabled: disable !== false, updated_at: new Date().toISOString() });
+    io.emit('conversation_takeover', { id: req.params.id, ai_disabled: disable !== false });
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
 // ── Send Message ──────────────────────────────────────────────

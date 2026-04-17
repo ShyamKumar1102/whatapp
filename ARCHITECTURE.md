@@ -1091,6 +1091,215 @@ VITE_BACKEND_URL=http://51.20.126.140
 
 ---
 
+---
+
+## WhatsApp Message Flow — Complete Guide
+
+### What You Need
+```
+1. Facebook Business Account     → free
+2. Meta Developer Account        → free
+3. A phone number for WhatsApp   → not already on WhatsApp
+4. EC2 server publicly accessible → already done ✅
+5. Port 80 open in Security Group → already done ✅
+```
+
+---
+
+### Step 1 — Customer Sends WhatsApp Message
+```
+Customer phone → WhatsApp app → types message → sends
+                    ↓
+         Meta receives on their servers
+                    ↓
+         Meta forwards to YOUR webhook
+```
+
+---
+
+### Step 2 — Meta Calls Your Webhook
+Meta makes a POST request to your EC2:
+```
+POST http://51.20.126.140/webhook
+```
+With this payload:
+```json
+{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "changes": [{
+      "value": {
+        "messages": [{
+          "from": "919876543210",
+          "type": "text",
+          "text": { "body": "Hello I need help" }
+        }],
+        "contacts": [{
+          "profile": { "name": "Rahul Sharma" }
+        }]
+      }
+    }]
+  }]
+}
+```
+
+---
+
+### Step 3 — Your Backend Processes It
+```javascript
+// backend/src/server.js
+app.post('/webhook', async (req, res) => {
+  res.sendStatus(200); // tell Meta "received OK" immediately
+
+  const phone   = metaMsg.from;     // "919876543210"
+  const name    = "Rahul Sharma";
+  const content = "Hello I need help";
+
+  // 1. Find or create contact in DynamoDB
+  let contact = await findContactByPhone(phone);
+  if (!contact) {
+    contact = { id: uuid(), name, phone };
+    await saveContact(contact);      // → crm_contacts table
+  }
+
+  // 2. Find or create conversation
+  let conv = await findConversationByPhone(phone);
+  if (!conv) {
+    conv = { id: uuid(), contact_id: contact.id, status: 'open' };
+    await saveConversation(conv);    // → crm_conversations table
+  }
+
+  // 3. Save the message
+  const message = { id: uuid(), chatId: conv.id, content, sender: 'contact' };
+  await saveMessage(message);        // → crm_messages table
+
+  // 4. Push to all logged-in agents instantly
+  io.emit('new_message', { ...message, contact });
+});
+```
+
+---
+
+### Step 4 — Socket.IO Delivers to Agents
+```javascript
+// frontend/src/store/useStore.js
+socket.on('new_message', (message) => {
+  // adds message to state
+  // updates chat list with new message preview
+  // shows notification toast with sound
+  // increments unread badge on sidebar
+});
+```
+Agent sees the message **instantly** — no page refresh needed.
+
+---
+
+### Step 5 — Agent Replies from CRM
+Agent types in chat box → clicks Send:
+```javascript
+// frontend/src/pages/ChatsPage.jsx
+addMessage({
+  chatId: selectedChatId,
+  content: "Hi Rahul! How can I help?",
+  sender: 'agent'
+});
+// calls → POST /api/messages/send
+```
+
+---
+
+### Step 6 — Backend Calls Meta Graph API
+```javascript
+// backend/src/server.js
+app.post('/api/messages/send', async (req, res) => {
+
+  // 1. Save to DynamoDB first
+  await saveMessage({ content, sender: 'agent' });
+
+  // 2. Send via Meta API
+  await fetch(`https://graph.facebook.com/v19.0/${PHONE_NUMBER_ID}/messages`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${META_ACCESS_TOKEN}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      messaging_product: 'whatsapp',
+      to: '919876543210',
+      type: 'text',
+      text: { body: 'Hi Rahul! How can I help?' }
+    })
+  });
+});
+```
+
+---
+
+### Step 7 — Status Updates (✓ → ✓✓ → ✓✓ blue)
+Meta sends status updates back to your webhook:
+```json
+{
+  "statuses": [{
+    "id": "meta_message_id",
+    "status": "delivered"
+  }]
+}
+```
+Your backend updates DynamoDB → emits via Socket.IO → agent sees tick update in real-time.
+
+---
+
+### Full Flow Summary
+
+| Step | Who | What |
+|------|-----|------|
+| 1 | Customer | Sends WhatsApp message |
+| 2 | Meta servers | POST to `http://51.20.126.140/webhook` |
+| 3 | Your Node.js | Parses JSON, saves to DynamoDB |
+| 4 | Socket.IO | Pushes to all logged-in agents instantly |
+| 5 | Agent | Sees message, types reply in CRM |
+| 6 | Your Node.js | Calls Meta Graph API with token |
+| 7 | Meta → Customer | Message delivered on WhatsApp |
+| 8 | Meta → Webhook | Status: sent → delivered → read |
+
+---
+
+### Setup Checklist
+```
+□ Create Meta Developer App at developers.facebook.com
+□ Add WhatsApp product to the app
+□ Copy Phone Number ID
+□ Copy WhatsApp Business Account ID (WABA ID)
+□ Generate permanent System User Token
+□ Update CRM Settings page with token + phone ID
+□ Register webhook: http://51.20.126.140/webhook
+□ Set verify token: my_crm_webhook_verify_token_2024
+□ Subscribe to: messages + message_status_updates
+□ Add test phone number in Meta console
+□ Send test message → appears in CRM ✅
+```
+
+### Update EC2 Backend .env
+```bash
+ssh -i "Mee.pem" ec2-user@51.20.126.140
+cd /home/ec2-user/crm/backend
+nano .env
+# Add:
+# META_ACCESS_TOKEN=EAAxxxxxxxxxxxxxxx
+# META_PHONE_NUMBER_ID=1234567890
+pm2 restart crm-backend
+```
+
+### Pricing
+```
+First 1,000 conversations/month  → FREE
+After that                        → ~$0.005 per conversation
+Template messages                 → ~$0.005 each
+Small business usage              → essentially FREE
+```
+
+---
+
 ## Future Roadmap
 
 ### Phase 2 — Production Hardening

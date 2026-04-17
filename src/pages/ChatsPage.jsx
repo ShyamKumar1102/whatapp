@@ -147,6 +147,17 @@ export default function ChatsPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const handleTakeover = async (disable = true) => {
+    try {
+      await fetch(`${BACKEND}/api/conversations/${selectedChatId}/takeover`, {
+        method: 'PATCH', headers: getAuthHeaders(),
+        body: JSON.stringify({ disable }),
+      });
+      useStore.setState(state => ({ chats: state.chats.map(c => c.id === selectedChatId ? { ...c, ai_disabled: disable } : c) }));
+      toast.success(disable ? 'You took over — AI stopped for this chat' : 'AI re-enabled for this chat');
+    } catch { toast.error('Failed to update AI mode'); }
+  };
+
   const handleSend = () => {
     if (!messageInput.trim() || !selectedChatId) return;
     addMessage({
@@ -483,7 +494,7 @@ export default function ChatsPage() {
                   </div>
                 )}
 
-                {/* Company Details + Payment Reminder Buttons */}
+                {/* Company Details + Payment Reminder + AI Takeover Buttons */}
                 <div className="flex gap-2 mb-3">
                   <Button
                     variant="outline"
@@ -511,6 +522,16 @@ export default function ChatsPage() {
                     Payment Reminder
                   </Button>
                 </div>
+                {/* AI Takeover */}
+                {selectedChat?.ai_disabled ? (
+                  <Button variant="outline" size="sm" className="w-full mb-3 text-xs text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => handleTakeover(false)}>
+                    🤖 Re-enable AI for this chat
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" className="w-full mb-3 text-xs text-orange-600 border-orange-200 hover:bg-orange-50" onClick={() => handleTakeover(true)}>
+                    👨 Take Over from AI
+                  </Button>
+                )}
                 
                 {/* Emoji Picker */}
                 {showEmojiPicker && (
