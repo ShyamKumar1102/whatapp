@@ -273,6 +273,84 @@ app.post('/api/auth/forgot-password', async (req, res) => {
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
 
+// ── Shared message processor ────────────────────────────────
+async function processIncomingMessage({ phone, name, content, type, messageId }) {
+  // Duplicate prevention
+  const existing = await dbScan(TABLES.MESSAGES, m => m.meta_message_id === messageId);
+  if (existing.length) return console.log(`⚠️  Duplicate skipped: ${messageId}`);
+
+  // Upsert contact
+  const contacts = await dbScan(TABLES.CONTACTS, c => c.phone === phone);
+  let contact = contacts[0];
+  if (!contact) {
+    contact = { id: generateId(), name, phone, tags: [], is_online: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    await dbPut(TABLES.CONTACTS, contact);
+    io.emit('contact_created', contact);
+  } else {
+    await dbUpdate(TABLES.CONTACTS, contact.id, { is_online: true, name, updated_at: new Date().toISOString() });
+    contact = { ...contact, is_online: true, name };
+  }
+
+  // Upsert conversation
+  let conv = await getConversationByPhone(phone);
+  if (!conv) {
+    conv = { id: generateId(), contact_id: contact.id, contact_phone: phone, status: 'open', channel: 'whatsapp', pushed_to_admin: false, unread_count: 1, last_message: content, last_message_at: new Date().toISOString(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+    await dbPut(TABLES.CONVERSATIONS, conv);
+    io.emit('conversation_created', { ...conv, contact });
+  } else {
+    await updateConversationLastMessage(conv.id, content, true);
+    conv.unread_count = (conv.unread_count || 0) + 1;
+  }
+
+  // Save customer message
+  const message = { id: generateId(), chatId: conv.id, conversation_id: conv.id, contact_phone: phone, content, type, sender: 'contact', status: 'received', meta_message_id: messageId, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), created_at: new Date().toISOString() };
+  await dbPut(TABLES.MESSAGES, message);
+  io.emit('new_message', { ...message, contact, chatId: conv.id });
+  console.log(`📨 [${phone}] ${name}: ${content}`);
+
+  // ChatGPT auto-reply
+  if (process.env.OPENAI_API_KEY && !conv.ai_disabled && type === 'text') {
+    try {
+      const history = await getMessagesByConversation(conv.id);
+      const chatHistory = history.slice(-10).map(m => ({ role: m.sender === 'contact' ? 'user' : 'assistant', content: m.content }));
+      chatHistory.push({ role: 'user', content });
+      const aiText = await getAIReply(chatHistory);
+
+      const aiMessage = { id: generateId(), chatId: conv.id, conversation_id: conv.id, contact_phone: phone, content: aiText, type: 'text', sender: 'ai', ai_generated: true, status: 'sent', timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), created_at: new Date().toISOString() };
+      await dbPut(TABLES.MESSAGES, aiMessage);
+
+      // Send via Twilio if configured
+      if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
+        const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`;
+        const params = new URLSearchParams({ From: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`, To: `whatsapp:${phone}`, Body: aiText });
+        await fetch(twilioUrl, { method: 'POST', headers: { Authorization: `Basic ${Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: params });
+      }
+      // Send via Meta if configured
+      else if (process.env.META_ACCESS_TOKEN && process.env.META_PHONE_NUMBER_ID) {
+        const metaRes = await fetch(`https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: phone, type: 'text', text: { body: aiText } }) });
+        const metaData = await metaRes.json();
+        if (metaData.messages?.[0]?.id) await dbUpdate(TABLES.MESSAGES, aiMessage.id, { meta_message_id: metaData.messages[0].id });
+      }
+
+      await updateConversationLastMessage(conv.id, aiText);
+      io.emit('new_message', { ...aiMessage, contact, chatId: conv.id });
+      console.log(`🤖 AI replied to [${phone}]: ${aiText.slice(0, 60)}...`);
+    } catch (err) { console.error('ChatGPT error:', err.message); }
+  }
+}
+
+// ── Twilio Webhook ────────────────────────────────────────────
+app.post('/twilio/webhook', async (req, res) => {
+  res.sendStatus(200);
+  try {
+    const { From, Body, ProfileName, WaId, MessageSid } = req.body;
+    if (!From || !Body) return;
+    const phone = From.replace('whatsapp:', '');
+    const name  = ProfileName || WaId || phone;
+    await processIncomingMessage({ phone, name, content: Body, type: 'text', messageId: MessageSid });
+  } catch (err) { console.error('Twilio webhook error:', err.message); }
+});
+
 // ── Meta Webhook ──────────────────────────────────────────────
 app.get('/webhook', (req, res) => {
   const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query;
@@ -290,135 +368,18 @@ app.post('/webhook', async (req, res) => {
   try {
     const value = body.entry?.[0]?.changes?.[0]?.value;
     if (!value) return;
-
     if (value.messages?.[0]) {
-      const metaMsg    = value.messages[0];
-      const phone      = metaMsg.from;
-      const name       = value.contacts?.[0]?.profile?.name || phone;
-      const message_id = metaMsg.id;
-
-      // Duplicate prevention
-      const existing = await dbScan(TABLES.MESSAGES, m => m.meta_message_id === message_id);
-      if (existing.length) return console.log(`⚠️  Duplicate message skipped: ${message_id}`);
-      const contentMap = {
-        text:     () => metaMsg.text?.body || '',
-        image:    () => '📷 Image',
-        document: () => `📎 ${metaMsg.document?.filename || 'Document'}`,
-        audio:    () => '🎤 Voice message',
-        video:    () => '🎥 Video',
-        location: () => `📍 ${metaMsg.location?.latitude}, ${metaMsg.location?.longitude}`,
-        sticker:  () => '🎨 Sticker',
-      };
+      const metaMsg = value.messages[0];
+      const phone   = metaMsg.from;
+      const name    = value.contacts?.[0]?.profile?.name || phone;
+      const contentMap = { text: () => metaMsg.text?.body || '', image: () => '📷 Image', document: () => `📎 ${metaMsg.document?.filename || 'Document'}`, audio: () => '🎤 Voice message', video: () => '🎥 Video', location: () => `📍 ${metaMsg.location?.latitude}, ${metaMsg.location?.longitude}`, sticker: () => '🎨 Sticker' };
       const content = (contentMap[metaMsg.type] || (() => metaMsg.type))();
-
-      // Upsert contact
-      const contacts = await dbScan(TABLES.CONTACTS, c => c.phone === phone);
-      let contact = contacts[0];
-      if (!contact) {
-        contact = { id: generateId(), name, phone, tags: [], is_online: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-        await dbPut(TABLES.CONTACTS, contact);
-        io.emit('contact_created', contact);
-      } else {
-        contact.is_online = true;
-        contact.name = name;
-        await dbUpdate(TABLES.CONTACTS, contact.id, { is_online: true, name, updated_at: new Date().toISOString() });
-      }
-
-      // Upsert conversation — one per customer phone number
-      let conv = await getConversationByPhone(phone);
-      if (!conv) {
-        conv = {
-          id:              generateId(),
-          contact_id:      contact.id,
-          contact_phone:   phone,
-          status:          'open',
-          channel:         'whatsapp',
-          pushed_to_admin: false,
-          unread_count:    1,
-          last_message:    content,
-          last_message_at: new Date().toISOString(),
-          created_at:      new Date().toISOString(),
-          updated_at:      new Date().toISOString(),
-        };
-        await dbPut(TABLES.CONVERSATIONS, conv);
-        io.emit('conversation_created', { ...conv, contact });
-      } else {
-        // Update last message and increment unread
-        await updateConversationLastMessage(conv.id, content, true);
-        conv.unread_count = (conv.unread_count || 0) + 1;
-      }
-
-      // ChatGPT auto-reply
-      if (process.env.OPENAI_API_KEY && !conv.ai_disabled && metaMsg.type === 'text') {
-        try {
-          const history = await getMessagesByConversation(conv.id);
-          const chatHistory = history.slice(-10).map(m => ({
-            role: m.sender === 'contact' ? 'user' : 'assistant',
-            content: m.content,
-          }));
-          chatHistory.push({ role: 'user', content });
-          const aiText = await getAIReply(chatHistory);
-
-          const aiMessage = {
-            id:              generateId(),
-            chatId:          conv.id,
-            conversation_id: conv.id,
-            contact_phone:   phone,
-            content:         aiText,
-            type:            'text',
-            sender:          'ai',
-            ai_generated:    true,
-            status:          'sent',
-            timestamp:       new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            created_at:      new Date().toISOString(),
-          };
-          await dbPut(TABLES.MESSAGES, aiMessage);
-
-          if (process.env.META_ACCESS_TOKEN && process.env.META_PHONE_NUMBER_ID) {
-            const metaRes = await fetch(`https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`, {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: phone, type: 'text', text: { body: aiText } }),
-            });
-            const metaData = await metaRes.json();
-            if (metaData.messages?.[0]?.id)
-              await dbUpdate(TABLES.MESSAGES, aiMessage.id, { meta_message_id: metaData.messages[0].id });
-          }
-
-          await updateConversationLastMessage(conv.id, aiText);
-          io.emit('new_message', { ...aiMessage, contact, chatId: conv.id });
-          console.log(`🤖 AI replied to [${phone}]: ${aiText.slice(0, 60)}...`);
-        } catch (err) {
-          console.error('ChatGPT error:', err.message);
-        }
-      }
-
-      // Save message — stored with conversation_id + contact_phone for per-customer queries
-      const message = {
-        id:              generateId(),
-        chatId:          conv.id,
-        conversation_id: conv.id,
-        contact_phone:   phone,
-        content,
-        type:            metaMsg.type,
-        sender:          'contact',
-        status:          'received',
-        meta_message_id: metaMsg.id,
-        timestamp:       new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        created_at:      new Date().toISOString(),
-      };
-      await dbPut(TABLES.MESSAGES, message);
-      io.emit('new_message', { ...message, contact, chatId: conv.id });
-      console.log(`📨 [${phone}] ${name}: ${content}`);
+      await processIncomingMessage({ phone, name, content, type: metaMsg.type, messageId: metaMsg.id });
     }
-
     if (value.statuses?.[0]) {
       const { id: metaId, status } = value.statuses[0];
       const msgs = await dbScan(TABLES.MESSAGES, m => m.meta_message_id === metaId);
-      if (msgs[0]) {
-        await dbUpdate(TABLES.MESSAGES, msgs[0].id, { status });
-        io.emit('message_status', { messageId: msgs[0].id, status });
-      }
+      if (msgs[0]) { await dbUpdate(TABLES.MESSAGES, msgs[0].id, { status }); io.emit('message_status', { messageId: msgs[0].id, status }); }
     }
   } catch (err) { console.error('Webhook error:', err.message); }
 });
