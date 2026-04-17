@@ -390,18 +390,29 @@ app.post('/api/external/message', async (req, res) => {
     const { phone, content, sender = 'ai' } = req.body;
     if (!phone || !content) return res.status(400).json({ success: false, message: 'phone and content required' });
 
-    const contacts = await dbScan(TABLES.CONTACTS, c => c.phone === phone || c.phone === `+${phone}`);
+    const contacts = await dbScan(TABLES.CONTACTS, c => c.phone === phone || c.phone === `+${phone}` || c.phone.replace('+','') === phone.replace('+',''));
     const contact  = contacts[0];
-    if (!contact) return res.status(404).json({ success: false, message: 'Contact not found' });
+    if (!contact) {
+      // Auto create contact if not found
+      const newContact = { id: generateId(), name: phone, phone: phone.startsWith('+') ? phone : `+${phone}`, tags: [], is_online: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      await dbPut(TABLES.CONTACTS, newContact);
+      io.emit('contact_created', newContact);
+    }
+    const finalContact = contacts[0] || { id: generateId(), phone: phone.startsWith('+') ? phone : `+${phone}`, name: phone };
 
-    const conv = await getConversationByPhone(phone) || await getConversationByPhone(`+${phone}`);
-    if (!conv) return res.status(404).json({ success: false, message: 'Conversation not found' });
+    const normalizedPhone = phone.startsWith('+') ? phone : `+${phone}`;
+    let conv = await getConversationByPhone(normalizedPhone) || await getConversationByPhone(phone);
+    if (!conv) {
+      conv = { id: generateId(), contact_id: finalContact.id, contact_phone: normalizedPhone, status: 'open', channel: 'whatsapp', pushed_to_admin: false, unread_count: 0, last_message: content, last_message_at: new Date().toISOString(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      await dbPut(TABLES.CONVERSATIONS, conv);
+      io.emit('conversation_created', { ...conv, contact: finalContact });
+    }
 
     const message = {
       id:              generateId(),
       chatId:          conv.id,
       conversation_id: conv.id,
-      contact_phone:   phone,
+      contact_phone:   normalizedPhone,
       content,
       type:            'text',
       sender,
@@ -412,7 +423,7 @@ app.post('/api/external/message', async (req, res) => {
     };
     await dbPut(TABLES.MESSAGES, message);
     await updateConversationLastMessage(conv.id, content);
-    io.emit('new_message', { ...message, contact, chatId: conv.id });
+    io.emit('new_message', { ...message, contact: finalContact, chatId: conv.id });
     console.log(`📥 [External] ${sender} message saved for [${phone}]: ${content.slice(0, 60)}`);
     res.json({ success: true, data: message });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
