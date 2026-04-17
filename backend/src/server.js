@@ -398,32 +398,36 @@ app.get('/api/conversations/ai-status', async (req, res) => {
 // ── External Message API (for Lambda to push AI replies to CRM) ────────
 app.post('/api/external/message', async (req, res) => {
   try {
-    const { phone, content, sender = 'ai' } = req.body;
-    if (!phone || !content) return res.status(400).json({ success: false, message: 'phone and content required' });
+    const { phone: rawPhone, content, sender = 'ai' } = req.body;
+    if (!rawPhone || !content) return res.status(400).json({ success: false, message: 'phone and content required' });
 
-    const contacts = await dbScan(TABLES.CONTACTS, c => c.phone === phone || c.phone === `+${phone}` || c.phone.replace('+','') === phone.replace('+',''));
-    const contact  = contacts[0];
+    // Normalize phone — try both with and without +
+    const phoneWithPlus    = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`;
+    const phoneWithoutPlus = rawPhone.replace('+', '');
+
+    // Find contact
+    let contact = (await dbScan(TABLES.CONTACTS, c => c.phone === phoneWithPlus || c.phone === phoneWithoutPlus || c.phone === rawPhone))[0];
+
+    // Find conversation
+    let conv = await getConversationByPhone(phoneWithPlus) || await getConversationByPhone(phoneWithoutPlus) || await getConversationByPhone(rawPhone);
+
+    // Auto create contact + conversation if not found
     if (!contact) {
-      // Auto create contact if not found
-      const newContact = { id: generateId(), name: phone, phone: phone.startsWith('+') ? phone : `+${phone}`, tags: [], is_online: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
-      await dbPut(TABLES.CONTACTS, newContact);
-      io.emit('contact_created', newContact);
+      contact = { id: generateId(), name: phoneWithPlus, phone: phoneWithPlus, tags: [], is_online: true, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      await dbPut(TABLES.CONTACTS, contact);
+      io.emit('contact_created', contact);
     }
-    const finalContact = contacts[0] || { id: generateId(), phone: phone.startsWith('+') ? phone : `+${phone}`, name: phone };
-
-    const normalizedPhone = phone.startsWith('+') ? phone : `+${phone}`;
-    let conv = await getConversationByPhone(normalizedPhone) || await getConversationByPhone(phone);
     if (!conv) {
-      conv = { id: generateId(), contact_id: finalContact.id, contact_phone: normalizedPhone, status: 'open', channel: 'whatsapp', pushed_to_admin: false, unread_count: 0, last_message: content, last_message_at: new Date().toISOString(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      conv = { id: generateId(), contact_id: contact.id, contact_phone: phoneWithPlus, status: 'open', channel: 'whatsapp', pushed_to_admin: false, unread_count: 0, last_message: content, last_message_at: new Date().toISOString(), created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
       await dbPut(TABLES.CONVERSATIONS, conv);
-      io.emit('conversation_created', { ...conv, contact: finalContact });
+      io.emit('conversation_created', { ...conv, contact });
     }
 
     const message = {
       id:              generateId(),
       chatId:          conv.id,
       conversation_id: conv.id,
-      contact_phone:   normalizedPhone,
+      contact_phone:   phoneWithPlus,
       content,
       type:            'text',
       sender,
@@ -434,8 +438,8 @@ app.post('/api/external/message', async (req, res) => {
     };
     await dbPut(TABLES.MESSAGES, message);
     await updateConversationLastMessage(conv.id, content);
-    io.emit('new_message', { ...message, contact: finalContact, chatId: conv.id });
-    console.log(`📥 [External] ${sender} message saved for [${phone}]: ${content.slice(0, 60)}`);
+    io.emit('new_message', { ...message, contact, chatId: conv.id });
+    console.log(`📥 [External] ${sender} message saved for [${phoneWithPlus}]: ${content.slice(0, 60)}`);
     res.json({ success: true, data: message });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 });
@@ -469,22 +473,31 @@ app.post('/api/messages/send', protect, async (req, res) => {
 
   if (contact) {
     try {
-      // Send via Twilio
       if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
         const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`;
-        const params = new URLSearchParams({ From: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`, To: `whatsapp:${contact.phone}`, Body: content });
-        const twilioRes = await fetch(twilioUrl, { method: 'POST', headers: { Authorization: `Basic ${Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: params });
+        const toPhone = contact.phone.startsWith('+') ? contact.phone : `+${contact.phone}`;
+        const params = new URLSearchParams({
+          From: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`,
+          To:   `whatsapp:${toPhone}`,
+          Body: content
+        });
+        const twilioRes = await fetch(twilioUrl, {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64')}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: params
+        });
         const twilioData = await twilioRes.json();
-        if (twilioData.sid) { message.meta_message_id = twilioData.sid; await dbUpdate(TABLES.MESSAGES, message.id, { meta_message_id: twilioData.sid }); console.log(`📤 Sent via Twilio to ${contact.phone}: ${content}`); }
-        if (twilioData.code) console.error('Twilio error:', twilioData.message);
-      }
-      // Fallback to Meta
-      else if (process.env.META_ACCESS_TOKEN && process.env.META_PHONE_NUMBER_ID) {
-        const metaBody = { messaging_product: 'whatsapp', recipient_type: 'individual', to: contact.phone, type: 'text', text: { preview_url: false, body: content } };
-        const metaRes = await fetch(`https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify(metaBody) });
-        const metaData = await metaRes.json();
-        if (metaData.messages?.[0]?.id) { message.meta_message_id = metaData.messages[0].id; await dbUpdate(TABLES.MESSAGES, message.id, { meta_message_id: metaData.messages[0].id }); console.log(`📤 Sent via Meta to ${contact.phone}: ${content}`); }
-        if (metaData.error) console.error('Meta API error:', metaData.error.message);
+        if (twilioData.sid) {
+          await dbUpdate(TABLES.MESSAGES, message.id, { meta_message_id: twilioData.sid, status: 'delivered' });
+          console.log(`📤 Agent reply sent via Twilio to ${toPhone}: ${content}`);
+        } else {
+          console.error('Twilio error:', twilioData.message || JSON.stringify(twilioData));
+        }
+      } else {
+        console.warn('⚠️  Twilio credentials not set — message saved but not sent');
       }
     } catch (err) { console.error('Send failed:', err.message); }
   }
