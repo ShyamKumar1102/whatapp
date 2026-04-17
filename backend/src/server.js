@@ -23,8 +23,6 @@ async function loadCompanyContext() {
   try {
     const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
     const { default: XLSX }   = await import('xlsx');
-    const pdfParse = await import('pdf-parse/lib/pdf-parse.js');
-    const pdf = pdfParse.default || pdfParse;
     const { writeFileSync, unlinkSync } = await import('fs');
     const { join }            = await import('path');
     const { tmpdir }          = await import('os');
@@ -66,8 +64,16 @@ async function loadCompanyContext() {
         const chunks = [];
         for await (const chunk of res.Body) chunks.push(chunk);
         const buffer = Buffer.concat(chunks);
-        const data   = await pdf(buffer);
-        context += `\n\nPDF FILE: ${key}\n${data.text}`;
+        const pdfjs  = await import('pdfjs-dist/legacy/build/pdf.mjs');
+        const loadingTask = pdfjs.getDocument({ data: new Uint8Array(buffer) });
+        const pdfDoc = await loadingTask.promise;
+        let pdfText = '';
+        for (let i = 1; i <= pdfDoc.numPages; i++) {
+          const page    = await pdfDoc.getPage(i);
+          const content = await page.getTextContent();
+          pdfText += content.items.map(item => item.str).join(' ') + '\n';
+        }
+        context += `\n\nPDF FILE: ${key}\n${pdfText}`;
         console.log(`✅ PDF loaded from S3: ${key}`);
       } catch (err) { console.warn(`⚠️  PDF load failed (${key}):`, err.message); }
     }
