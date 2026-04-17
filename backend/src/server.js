@@ -308,8 +308,8 @@ async function processIncomingMessage({ phone, name, content, type, messageId })
   io.emit('new_message', { ...message, contact, chatId: conv.id });
   console.log(`📨 [${phone}] ${name}: ${content}`);
 
-  // ChatGPT auto-reply
-  if (process.env.OPENAI_API_KEY && !conv.ai_disabled && type === 'text') {
+  // ChatGPT auto-reply — disabled, Lambda handles replies
+  if (false && process.env.OPENAI_API_KEY && !conv.ai_disabled && type === 'text') {
     try {
       const history = await getMessagesByConversation(conv.id);
       const chatHistory = history.slice(-10).map(m => ({ role: m.sender === 'contact' ? 'user' : 'assistant', content: m.content }));
@@ -411,25 +411,26 @@ app.post('/api/messages/send', protect, async (req, res) => {
   };
   await dbPut(TABLES.MESSAGES, message);
 
-  if (process.env.META_ACCESS_TOKEN && process.env.META_PHONE_NUMBER_ID && contact) {
+  if (contact) {
     try {
-      const metaBody = type === 'template' && templateName
-        ? { messaging_product: 'whatsapp', to: contact.phone, type: 'template', template: { name: templateName, language: { code: 'en_US' }, components: templateParams ? [{ type: 'body', parameters: templateParams.map(p => ({ type: 'text', text: p })) }] : [] } }
-        : { messaging_product: 'whatsapp', recipient_type: 'individual', to: contact.phone, type: 'text', text: { preview_url: false, body: content } };
-
-      const metaRes  = await fetch(`https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(metaBody),
-      });
-      const metaData = await metaRes.json();
-      if (metaData.messages?.[0]?.id) {
-        message.meta_message_id = metaData.messages[0].id;
-        await dbUpdate(TABLES.MESSAGES, message.id, { meta_message_id: metaData.messages[0].id });
-        console.log(`📤 Sent to ${contact.phone}: ${content}`);
+      // Send via Twilio
+      if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
+        const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`;
+        const params = new URLSearchParams({ From: `whatsapp:${process.env.TWILIO_PHONE_NUMBER}`, To: `whatsapp:${contact.phone}`, Body: content });
+        const twilioRes = await fetch(twilioUrl, { method: 'POST', headers: { Authorization: `Basic ${Buffer.from(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded' }, body: params });
+        const twilioData = await twilioRes.json();
+        if (twilioData.sid) { message.meta_message_id = twilioData.sid; await dbUpdate(TABLES.MESSAGES, message.id, { meta_message_id: twilioData.sid }); console.log(`📤 Sent via Twilio to ${contact.phone}: ${content}`); }
+        if (twilioData.code) console.error('Twilio error:', twilioData.message);
       }
-      if (metaData.error) { console.error('Meta API error:', metaData.error.message); message.status = 'failed'; }
-    } catch (err) { console.error('Meta send failed:', err.message); }
+      // Fallback to Meta
+      else if (process.env.META_ACCESS_TOKEN && process.env.META_PHONE_NUMBER_ID) {
+        const metaBody = { messaging_product: 'whatsapp', recipient_type: 'individual', to: contact.phone, type: 'text', text: { preview_url: false, body: content } };
+        const metaRes = await fetch(`https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`, { method: 'POST', headers: { Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify(metaBody) });
+        const metaData = await metaRes.json();
+        if (metaData.messages?.[0]?.id) { message.meta_message_id = metaData.messages[0].id; await dbUpdate(TABLES.MESSAGES, message.id, { meta_message_id: metaData.messages[0].id }); console.log(`📤 Sent via Meta to ${contact.phone}: ${content}`); }
+        if (metaData.error) console.error('Meta API error:', metaData.error.message);
+      }
+    } catch (err) { console.error('Send failed:', err.message); }
   }
   res.json({ success: true, data: message });
 });
