@@ -23,7 +23,8 @@ async function loadCompanyContext() {
   try {
     const { S3Client, GetObjectCommand } = await import('@aws-sdk/client-s3');
     const { default: XLSX }   = await import('xlsx');
-    const { default: pdf }    = await import('pdf-parse');
+    const pdfParse = await import('pdf-parse');
+    const pdf = pdfParse.default || pdfParse;
     const { writeFileSync, unlinkSync } = await import('fs');
     const { join }            = await import('path');
     const { tmpdir }          = await import('os');
