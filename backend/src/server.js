@@ -14,6 +14,8 @@ import { register, login, getMe, protect } from './middleware/auth.js';
 
 dotenv.config();
 
+process.env.TZ = 'Asia/Kolkata';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ── S3 company knowledge loader (Excel + PDF) ────────────────
