@@ -308,8 +308,8 @@ async function processIncomingMessage({ phone, name, content, type, messageId })
   io.emit('new_message', { ...message, contact, chatId: conv.id });
   console.log(`📨 [${phone}] ${name}: ${content}`);
 
-  // ChatGPT auto-reply — disabled, Lambda handles replies
-  if (false && process.env.OPENAI_API_KEY && !conv.ai_disabled && type === 'text') {
+  // ChatGPT auto-reply — handled by Lambda
+  if (false) {
     try {
       const history = await getMessagesByConversation(conv.id);
       const chatHistory = history.slice(-10).map(m => ({ role: m.sender === 'contact' ? 'user' : 'assistant', content: m.content }));
@@ -382,6 +382,17 @@ app.post('/webhook', async (req, res) => {
       if (msgs[0]) { await dbUpdate(TABLES.MESSAGES, msgs[0].id, { status }); io.emit('message_status', { messageId: msgs[0].id, status }); }
     }
   } catch (err) { console.error('Webhook error:', err.message); }
+});
+
+// ── AI Status check (for Lambda) ─────────────────────────────────
+app.get('/api/conversations/ai-status', async (req, res) => {
+  try {
+    const { phone } = req.query;
+    if (!phone) return res.json({ ai_disabled: false });
+    const normalizedPhone = phone.startsWith('+') ? phone : `+${phone}`;
+    const conv = await getConversationByPhone(normalizedPhone) || await getConversationByPhone(phone);
+    res.json({ ai_disabled: conv?.ai_disabled || false });
+  } catch (err) { res.json({ ai_disabled: false }); }
 });
 
 // ── External Message API (for Lambda to push AI replies to CRM) ────────
