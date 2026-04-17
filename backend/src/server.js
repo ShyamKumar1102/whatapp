@@ -384,6 +384,40 @@ app.post('/webhook', async (req, res) => {
   } catch (err) { console.error('Webhook error:', err.message); }
 });
 
+// ── External Message API (for Lambda to push AI replies to CRM) ────────
+app.post('/api/external/message', async (req, res) => {
+  try {
+    const { phone, content, sender = 'ai' } = req.body;
+    if (!phone || !content) return res.status(400).json({ success: false, message: 'phone and content required' });
+
+    const contacts = await dbScan(TABLES.CONTACTS, c => c.phone === phone || c.phone === `+${phone}`);
+    const contact  = contacts[0];
+    if (!contact) return res.status(404).json({ success: false, message: 'Contact not found' });
+
+    const conv = await getConversationByPhone(phone) || await getConversationByPhone(`+${phone}`);
+    if (!conv) return res.status(404).json({ success: false, message: 'Conversation not found' });
+
+    const message = {
+      id:              generateId(),
+      chatId:          conv.id,
+      conversation_id: conv.id,
+      contact_phone:   phone,
+      content,
+      type:            'text',
+      sender,
+      ai_generated:    sender === 'ai',
+      status:          'sent',
+      timestamp:       new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      created_at:      new Date().toISOString(),
+    };
+    await dbPut(TABLES.MESSAGES, message);
+    await updateConversationLastMessage(conv.id, content);
+    io.emit('new_message', { ...message, contact, chatId: conv.id });
+    console.log(`📥 [External] ${sender} message saved for [${phone}]: ${content.slice(0, 60)}`);
+    res.json({ success: true, data: message });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+});
+
 // ── AI Takeover ──────────────────────────────────────────────
 app.patch('/api/conversations/:id/takeover', protect, async (req, res) => {
   try {
