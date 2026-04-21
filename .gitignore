@@ -36,3 +36,7 @@ backend/.env
 
 # OS
 Thumbs.db
+
+# Docs and scripts
+*.md
+patch.js
