@@ -6,11 +6,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_in_production';
 const JWT_EXPIRE = process.env.JWT_EXPIRE  || '7d';
 
 const signToken = (user) =>
-  jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRE });
+  jwt.sign({ id: user.id, email: user.email, role: user.role, business_id: user.business_id }, JWT_SECRET, { expiresIn: JWT_EXPIRE });
 
 export const register = async (req, res) => {
   try {
-    const { name, email, password, role = 'agent' } = req.body;
+    const { name, email, password, role = 'agent', business_id = 'prasham' } = req.body;
     if (!name || !email || !password)
       return res.status(400).json({ success: false, message: 'Name, email and password are required' });
 
@@ -19,7 +19,7 @@ export const register = async (req, res) => {
       return res.status(409).json({ success: false, message: 'Email already registered' });
 
     const password_hash = await bcrypt.hash(password, 10);
-    const user = { id: generateId(), name, email, password_hash, role, is_active: true, created_at: new Date().toISOString() };
+    const user = { id: generateId(), name, email, password_hash, role, business_id, is_active: true, created_at: new Date().toISOString() };
     await dbPut(TABLES.USERS, user);
 
     const token = signToken(user);
@@ -69,6 +69,7 @@ export const protect = async (req, res, next) => {
     if (!user || !user.is_active)
       return res.status(401).json({ success: false, message: 'User not found or inactive' });
     req.user = user;
+    req.business_id = user.business_id || 'prasham';
     next();
   } catch {
     res.status(401).json({ success: false, message: 'Invalid or expired token' });

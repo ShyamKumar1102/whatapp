@@ -318,6 +318,18 @@ export default function ChatsPage() {
     setConfirmClear(true);
   };
 
+  const handleClearChatConfirm = async () => {
+    try {
+      await fetch(`${BACKEND}/api/conversations/${selectedChatId}/clear`, {
+        method: 'DELETE', headers: getAuthHeaders(),
+      });
+      useStore.setState(state => ({
+        messages: state.messages.filter(m => m.chatId !== selectedChatId && m.conversation_id !== selectedChatId)
+      }));
+      toast.success('Chat cleared!');
+    } catch { toast.error('Failed to clear chat'); }
+  };
+
   const handleMarkUnread = () => {
     setShowMoreMenu(false);
   };
@@ -329,7 +341,7 @@ export default function ChatsPage() {
   return (
     <div className="flex flex-col h-screen">
       <ConfirmDialog open={confirmBlock} title="Block Contact" description={`Block ${selectedChat?.contact.name}? They won't be able to send messages.`} confirmLabel="Block" onConfirm={() => { toast.success(`${selectedChat?.contact.name} blocked.`); }} onCancel={() => setConfirmBlock(false)} />
-      <ConfirmDialog open={confirmClear} title="Clear Chat" description="All messages in this chat will be cleared." confirmLabel="Clear" onConfirm={() => { toast.success('Chat cleared.'); }} onCancel={() => setConfirmClear(false)} />
+      <ConfirmDialog open={confirmClear} title="Clear Chat" description="All messages in this chat will be cleared from dashboard." confirmLabel="Clear" onConfirm={() => { handleClearChatConfirm(); setConfirmClear(false); }} onCancel={() => setConfirmClear(false)} />
       <div className="px-3 sm:px-6 pt-3 sm:pt-4 pb-0 shrink-0">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-lg sm:text-xl font-semibold text-foreground">Chats</h1>
